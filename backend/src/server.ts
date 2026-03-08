@@ -1,11 +1,9 @@
-import "dotenv/config";
 import app from "./app";
+import { config } from "./config";
 import { logger } from "./core/utils/logger";
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
-
-const server = app.listen(PORT, () => {
-  logger.info({ port: PORT, env: process.env.NODE_ENV }, "Server started");
+const server = app.listen(config.PORT, () => {
+  logger.info({ port: config.PORT, env: config.NODE_ENV }, "Server started");
 });
 
 const shutdown = (signal: string): void => {

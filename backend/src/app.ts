@@ -1,9 +1,9 @@
-import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
 
+import { config } from "./config";
 import { logger } from "./core/utils/logger";
 import { requestIdMiddleware } from "./core/middlewares/requestId.middleware";
 import { createRateLimiter } from "./core/middlewares/rateLimiter.middleware";
@@ -14,11 +14,16 @@ import healthRoutes from "./modules/health/health.routes";
 
 const app = express();
 
+// ── Proxy trust ───────────────────────────────────────────────────────────────
+if (config.TRUST_PROXY) {
+  app.set("trust proxy", 1);
+}
+
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:3000",
+    origin: config.FRONTEND_URL,
     credentials: true,
   }),
 );
@@ -38,12 +43,7 @@ app.use(
 );
 
 // ── Global rate limiter (500 req/min) ─────────────────────────────────────────
-app.use(
-  createRateLimiter({
-    windowMs: 60 * 1000,
-    max: 500,
-  }),
-);
+app.use(createRateLimiter("global", 500, 60_000, "global"));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/health", healthRoutes);

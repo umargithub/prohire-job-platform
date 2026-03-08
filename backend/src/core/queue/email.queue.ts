@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import { config } from "../../config";
 
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
@@ -26,8 +27,7 @@ export class EmailQueue {
   private readonly queue: Queue<EmailJobData>;
 
   constructor() {
-    const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
-    const connection = parseRedisUrl(redisUrl);
+    const connection = parseRedisUrl(config.REDIS_URL);
 
     this.queue = new Queue<EmailJobData>("email", {
       connection,

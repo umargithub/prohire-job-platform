@@ -50,8 +50,8 @@ async function runMigrations(): Promise<void> {
       const filePath = path.join(MIGRATIONS_DIR, filename);
       const sql = fs.readFileSync(filePath, "utf8");
 
-      await client.query("BEGIN");
       try {
+        await client.query("BEGIN");
         await client.query(sql);
         await client.query(
           "INSERT INTO schema_migrations (filename) VALUES ($1)",
@@ -72,9 +72,15 @@ async function runMigrations(): Promise<void> {
   logger.info({ count: pending.length }, "Migrations complete");
 }
 
-runMigrations()
-  .then(() => process.exit(0))
-  .catch((err) => {
+async function main(): Promise<void> {
+  try {
+    await runMigrations();
+  } catch (err) {
     logger.error({ err }, "Migration runner failed");
-    process.exit(1);
-  });
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+}
+
+main().then(() => process.exit(process.exitCode ?? 0));
