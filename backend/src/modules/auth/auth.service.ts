@@ -1,0 +1,246 @@
+import bcrypt from "bcrypt";
+import { AuthRepository } from "./auth.repository";
+import {
+  RegisterInput,
+  LoginInput,
+  ResendVerificationInput,
+  ResetPasswordInput,
+} from "./auth.dto";
+import { generateAccessToken } from "../../shared/utils/jwt.utils";
+import { hashToken, generateToken } from "../../shared/utils/crypto.utils";
+import { EmailQueue } from "../../core/queue/email.queue";
+import {
+  AppError,
+  EmailNotVerifiedError,
+  UnauthorizedError,
+} from "../../core/errors/AppError";
+
+const BCRYPT_ROUNDS = 12;
+const VERIFICATION_TOKEN_EXPIRES_MS = 24 * 60 * 60 * 1000; // 24h
+const REFRESH_TOKEN_EXPIRES_MS = 7 * 24 * 60 * 60 * 1000; // 7d
+const PASSWORD_RESET_EXPIRES_MS = 60 * 60 * 1000; // 1h
+
+export class AuthService {
+  constructor(
+    private readonly authRepository: AuthRepository,
+    private readonly emailQueue: EmailQueue,
+  ) {}
+
+  async registerCandidate(input: RegisterInput): Promise<{ message: string }> {
+    const existing = await this.authRepository.findByEmail(input.email);
+    if (existing) {
+      throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
+    const user = await this.authRepository.createUserWithVerificationToken({
+      email: input.email,
+      passwordHash,
+      role: "candidate",
+      tokenHash,
+      expiresAt,
+    });
+    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
+
+    return { message: "Registration successful. Please verify your email." };
+  }
+
+  async registerCompany(input: RegisterInput): Promise<{ message: string }> {
+    const existing = await this.authRepository.findByEmail(input.email);
+    if (existing) {
+      throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
+    const user = await this.authRepository.createUserWithVerificationToken({
+      email: input.email,
+      passwordHash,
+      role: "company",
+      tokenHash,
+      expiresAt,
+    });
+    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
+
+    return { message: "Registration successful. Please verify your email." };
+  }
+
+  async resendVerificationEmail(
+    input: ResendVerificationInput,
+  ): Promise<{ message: string }> {
+    const SAFE_MESSAGE =
+      "If that email exists and is unverified, a new verification email has been sent.";
+
+    const user = await this.authRepository.findByEmail(input.email);
+
+    if (!user || user.is_verified) {
+      return { message: SAFE_MESSAGE };
+    }
+
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
+
+    await this.authRepository.deleteUserVerificationTokens(user.id);
+    await this.authRepository.saveVerificationToken(
+      user.id,
+      tokenHash,
+      expiresAt,
+    );
+    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
+
+    return { message: SAFE_MESSAGE };
+  }
+
+  async login(input: LoginInput): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: { id: string; email: string; role: string };
+  }> {
+    const user = await this.authRepository.findByEmail(input.email);
+    if (!user) {
+      throw new UnauthorizedError("Invalid credentials");
+    }
+
+    const valid = await bcrypt.compare(input.password, user.password_hash);
+    if (!valid) {
+      throw new UnauthorizedError("Invalid credentials");
+    }
+
+    if (!user.is_verified) {
+      throw new EmailNotVerifiedError();
+    }
+
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_MS);
+    await this.authRepository.saveRefreshToken(user.id, tokenHash, expiresAt);
+
+    return {
+      accessToken,
+      refreshToken: rawToken,
+      user: { id: user.id, email: user.email, role: user.role },
+    };
+  }
+
+  async verifyEmail(rawToken: string): Promise<{ message: string }> {
+    const tokenHash = hashToken(rawToken);
+    const tokenRow = await this.authRepository.findVerificationToken(tokenHash);
+
+    if (!tokenRow) {
+      throw new AppError(
+        "Invalid or expired verification token",
+        400,
+        "INVALID_TOKEN",
+      );
+    }
+
+    await this.authRepository.markEmailVerified(tokenRow.user_id);
+    await this.authRepository.deleteVerificationToken(tokenRow.id);
+
+    return { message: "Email verified successfully." };
+  }
+
+  async refresh(rawToken: string): Promise<{
+    accessToken: string;
+    newRefreshToken: string;
+    user: { id: string; email: string; role: string };
+  }> {
+    const tokenHash = hashToken(rawToken);
+    const tokenRow = await this.authRepository.findRefreshToken(tokenHash);
+
+    if (!tokenRow) {
+      throw new UnauthorizedError("Invalid or expired refresh token");
+    }
+
+    // Rotate: delete old token, issue new one
+    await this.authRepository.deleteRefreshToken(tokenHash);
+
+    const newRawToken = generateToken();
+    const newTokenHash = hashToken(newRawToken);
+    const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_MS);
+    await this.authRepository.saveRefreshToken(
+      tokenRow.user_id,
+      newTokenHash,
+      newExpiresAt,
+    );
+
+    const accessToken = generateAccessToken({
+      userId: tokenRow.user_id,
+      role: tokenRow.role,
+    });
+
+    return {
+      accessToken,
+      newRefreshToken: newRawToken,
+      user: {
+        id: tokenRow.user_id,
+        email: tokenRow.email,
+        role: tokenRow.role,
+      },
+    };
+  }
+
+  async logout(rawToken: string): Promise<void> {
+    const tokenHash = hashToken(rawToken);
+    await this.authRepository.deleteRefreshToken(tokenHash);
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const SAFE_MESSAGE =
+      "If that email exists, a password reset link has been sent.";
+
+    const user = await this.authRepository.findByEmail(email);
+    if (!user) {
+      // No email enumeration — always return the same response
+      return { message: SAFE_MESSAGE };
+    }
+
+    await this.authRepository.deleteUserPasswordResetTokens(user.id);
+
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MS);
+    await this.authRepository.savePasswordResetToken(
+      user.id,
+      tokenHash,
+      expiresAt,
+    );
+    await this.emailQueue.enqueuePasswordResetEmail(user.email, rawToken);
+
+    return { message: SAFE_MESSAGE };
+  }
+
+  async resetPassword(
+    rawToken: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const tokenHash = hashToken(rawToken);
+    const tokenRow =
+      await this.authRepository.findPasswordResetToken(tokenHash);
+
+    if (!tokenRow) {
+      throw new AppError(
+        "Invalid or expired password reset token",
+        400,
+        "INVALID_TOKEN",
+      );
+    }
+
+    await this.authRepository.deletePasswordResetToken(tokenRow.id);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.authRepository.updatePassword(tokenRow.user_id, passwordHash);
+
+    return { message: "Password reset successfully." };
+  }
+}

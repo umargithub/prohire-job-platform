@@ -14,4 +14,8 @@ export const config = {
 
   DATABASE_URL: requireEnv("DATABASE_URL"),
   REDIS_URL: requireEnv("REDIS_URL"),
-} as const;
+
+  JWT_SECRET: requireEnv("JWT_SECRET"),
+  JWT_ACCESS_EXPIRES_IN: process.env["JWT_ACCESS_EXPIRES_IN"] ?? "15m",
+  JWT_REFRESH_EXPIRES_IN: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "7d",
+};

@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProHire — Auth Module Flow Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --bg-card:   #161b22;
+      --bg-hover:  #1c2333;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #3b82f6;
+      --error:     #ef4444;
+      --success:   #22c55e;
+      --warn:      #eab308;
+      --purple:    #a855f7;
+      --green:     #059669;
+      --mono:      'JetBrains Mono', 'Fira Code', monospace;
+      --prose:     system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--prose);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ─── Header ─── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    header h1 {
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    header h1 .dim { color: var(--muted); }
+    header h1 .hi  { color: var(--accent); }
+
+    .phase-badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: #0d2040;
+      border: 1px solid var(--accent);
+      color: #93c5fd;
+    }
+
+    /* ─── Main Tabs ─── */
+    .main-tabs {
+      display: flex;
+      gap: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--prose);
+      font-size: 0.875rem;
+      padding: 0.5rem 1.25rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ─── Main Layout ─── */
+    main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+
+    .panel     { display: none; }
+    .panel.active { display: block; }
+
+    /* ─── Section heading ─── */
+    .section-heading {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ─── Diagram Card ─── */
+    .diagram-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+
+    .diagram-card h3 {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .viz-svg { display: block; }
+
+    /* ERD table styles */
+    .erd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .erd-table { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .erd-table-name { background: #0d2040; color: var(--accent); font-family: var(--mono); font-size: 0.85rem; font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    .erd-table table { width: 100%; border-collapse: collapse; }
+    .erd-table td { padding: 0.25rem 0.75rem; font-family: var(--mono); font-size: 0.8rem; border-bottom: 1px solid rgba(48,54,61,0.5); }
+    .erd-table tr:last-child td { border-bottom: none; }
+    .col-type { color: var(--muted); }
+    .col-name { color: var(--text); }
+    .col-key { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .col-key.pk { background: #0d2040; color: #93c5fd; border: 1px solid #3b82f6; }
+    .col-key.fk { background: #1a0f2e; color: #d8b4fe; border: 1px solid #a855f7; }
+    .col-key.uk { background: #0a2010; color: #86efac; border: 1px solid #22c55e; }
+    .erd-relations { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); line-height: 2; }
+    /* viz.js SVG */
+    .viz-svg text { font-family: Helvetica, sans-serif; }
+
+    /* ─── Two-column grid ─── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ─── Endpoint Sub-tabs ─── */
+    .endpoint-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .ep-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.4rem 0.85rem;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .ep-btn:hover  { color: var(--text); }
+    .ep-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .ep-panel     { display: none; }
+    .ep-panel.active { display: block; }
+
+    /* ─── Route Badge ─── */
+    .route-badge {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .method {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.18rem 0.55rem;
+      border-radius: 4px;
+    }
+
+    .method.get    { background: #134e4a; color: #5eead4; }
+    .method.post   { background: #1e3a5f; color: #93c5fd; }
+    .method.put    { background: #431407; color: #fdba74; }
+    .method.patch  { background: #3b0764; color: #d8b4fe; }
+    .method.delete { background: #450a0a; color: #fca5a5; }
+
+    .route-path {
+      font-family: var(--mono);
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+
+    .status-badges { display: flex; gap: 0.3rem; margin-left: auto; }
+
+    .status {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .s2xx { background: #14532d; color: #86efac; }
+    .s4xx { background: #7f1d1d; color: #fca5a5; }
+
+    /* ─── Middleware Strip ─── */
+    .middleware-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+      padding: 0.75rem 1rem;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .mw-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-right: 0.25rem;
+    }
+
+    .pill {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .pill.on {
+      background: #0d2040;
+      border-color: var(--accent);
+      color: #93c5fd;
+    }
+
+    .pill.off {
+      background: transparent;
+      border-color: #2a2a2a;
+      color: #3a3a3a;
+      text-decoration: line-through;
+    }
+
+    .pill-arrow { color: var(--muted); font-size: 0.75rem; }
+
+    /* ─── Callout Boxes ─── */
+    aside {
+      border-left: 3px solid;
+      padding: 0.7rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.83rem;
+      line-height: 1.65;
+    }
+
+    aside.info    { border-color: var(--accent); background: #0a1628; }
+    aside.warn    { border-color: var(--warn);   background: #171208; }
+    aside.confirm { border-color: var(--success); background: #071410; }
+    aside.danger  { border-color: var(--error);   background: #140808; }
+
+    aside strong {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.35rem;
+    }
+
+    aside.info    strong { color: var(--accent); }
+    aside.warn    strong { color: var(--warn); }
+    aside.confirm strong { color: var(--success); }
+    aside.danger  strong { color: var(--error); }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: #1e2535;
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      color: #c9d1d9;
+    }
+
+    /* ─── Rate Limit Table ─── */
+    .rl-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 1.5rem;
+    }
+
+    .rl-wrap h3 {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 1rem 1.25rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rl-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .rl-table th {
+      text-align: left;
+      padding: 0.5rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 500;
+    }
+
+    .rl-table td {
+      padding: 0.6rem 1.25rem;
+      border-bottom: 1px solid #161b22;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      vertical-align: top;
+    }
+
+    .rl-table tr:last-child td { border-bottom: none; }
+    .rl-table tr:hover td { background: var(--bg-hover); }
+
+    .rl-table td:first-child { color: #93c5fd; }
+
+    /* ─── Print ─── */
+    @media print {
+      header { position: static; }
+      .main-tabs, .endpoint-tabs { display: none !important; }
+      .panel, .ep-panel { display: block !important; }
+      .diagram-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; }
+      aside { break-inside: avoid; }
+      body { background: #fff; color: #111; }
+      .muted, .mw-label { color: #555; }
+      .pill.off { color: #aaa; border-color: #ddd; }
+      .pill.on  { background: #e0eaff; border-color: #3b82f6; color: #1e3a5f; }
+      h1, h3, .section-heading { color: #111; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1><span class="dim">ProHire /</span> <span class="hi">Auth Module</span> <span class="dim">— Flow Visualizer</span></h1>
+    <span class="phase-badge">Phase 3</span>
+  </div>
+  <nav class="main-tabs">
+    <button class="tab-btn active" data-tab="architecture">Architecture</button>
+    <button class="tab-btn" data-tab="endpoints">Endpoints</button>
+    <button class="tab-btn" data-tab="data-model">Data Model</button>
+    <button class="tab-btn" data-tab="security">Security Model</button>
+    <button class="tab-btn" data-tab="concepts">Concepts</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 1 — ARCHITECTURE
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-architecture" class="panel active">
+    <p class="section-heading">Bird's-eye view of all layers + DI wiring</p>
+
+    <div class="diagram-card">
+      <h3>Request Flow — CLIENT → MIDDLEWARE → CONTROLLER → SERVICE → REPOSITORY → INFRASTRUCTURE</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  fontname="Helvetica"
+  fontcolor="#e6edf3"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3"]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  subgraph cluster_CLIENT {
+    label="CLIENT" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    REQ [label="HTTP Request" shape=box style="filled,rounded" fillcolor="#1c2333"]
+  }
+  subgraph cluster_MW {
+    label="MIDDLEWARE CHAIN" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    RL  [label="Rate Limiter\nRedis Lua - sliding window"]
+    ZV  [label="validate()\nZod Schema - 422 on fail"]
+    AH  [label="asyncHandler()\nError boundary - catches throws"]
+  }
+  subgraph cluster_CTL {
+    label="CONTROLLER" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    AC  [label="AuthController\nextract DTO from req\ncall service method\nreturn JSON response"]
+  }
+  subgraph cluster_SVC {
+    label="SERVICE" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    AS  [label="AuthService\nbcrypt - JWT - token ops\nall business decisions here"]
+  }
+  subgraph cluster_REPO {
+    label="REPOSITORY" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    AR  [label="AuthRepository\nparameterized SQL only\ntransactions managed here"]
+  }
+  subgraph cluster_INFRA {
+    label="INFRASTRUCTURE" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    PG  [label="PostgreSQL 16\npg Pool" shape=cylinder style=filled fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+    RD  [label="Redis 7\nioredis" shape=cylinder style=filled fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+    BQ  [label="BullMQ\nEmail Queue" shape=box peripheries=2 style=filled fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+    EML [label="Email Worker\nasync consumer" shape=box style="filled,rounded" fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+  }
+
+  RLERR [label="AppError - global handler" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  ZVERR [label="AppError - global handler" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+
+  REQ -> RL
+  RL -> ZV   [label="allowed"]
+  RL -> RLERR [label="429 RATE_LIMITED"]
+  ZV -> AH   [label="validated DTO"]
+  ZV -> ZVERR [label="422 VALIDATION_ERROR"]
+  AH -> AC
+  AC -> AS   [label="typed DTO"]
+  AS -> AR   [label="repo calls"]
+  AS -> BQ   [style=dashed label="BullMQ enqueue"]
+  AR -> PG   [label="raw SQL + params"]
+  RL -> RD   [label="EVAL Lua script" dir=both]
+  BQ -> EML  [style=dashed label="async worker"]
+}
+      </pre>
+    </div>
+
+    <div class="diagram-card">
+      <h3>DI Container Wiring — app.ts registration order</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3"]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  DB  [label="pg Pool\ndb.ts" shape=cylinder fillcolor="#1a1a2e" color="#6b7280" fontcolor="#9ca3af"]
+  EQ  [label="EmailQueue\nBullMQ" shape=box peripheries=2 fillcolor="#1a1a2e" color="#6b7280" fontcolor="#9ca3af"]
+  AR  [label="AuthRepository" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  AS  [label="AuthService" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  AC  [label="AuthController" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  RT  [label="auth.routes.ts\nRouter"]
+  MW  [label="Express App\n/api/v1/auth/*"]
+
+  DB -> AR [label="new AuthRepository(db)"]
+  EQ -> AS [label="injected"]
+  AR -> AS [label="new AuthService(repo, emailQueue)"]
+  AS -> AC [label="new AuthController(service)"]
+  AC -> RT [label="container.resolve('authController')"]
+  RT -> MW
+}
+      </pre>
+    </div>
+
+    <aside class="info">
+      <strong>Architecture Rule</strong>
+      Controllers are thin — they only extract a validated DTO, call one service method, and return JSON.
+      All business logic lives in <code>AuthService</code>. All SQL lives in <code>AuthRepository</code>.
+      No cross-module repository imports. Services may call other services.
+    </aside>
+
+    <aside class="confirm">
+      <strong>Error Propagation</strong>
+      Services throw typed <code>AppError</code> subclasses. <code>asyncHandler</code> catches any thrown error
+      and forwards it to the global error handler middleware, which formats the response. Stack traces are
+      never exposed in production.
+    </aside>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 2 — ENDPOINTS
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-endpoints" class="panel">
+    <p class="section-heading">9 endpoints — select one to inspect its middleware chain and logic flow</p>
+
+    <nav class="endpoint-tabs">
+      <button class="ep-btn active" data-ep="reg-candidate">POST /register/candidate</button>
+      <button class="ep-btn" data-ep="reg-company">POST /register/company</button>
+      <button class="ep-btn" data-ep="login">POST /login</button>
+      <button class="ep-btn" data-ep="verify-email">GET /verify-email</button>
+      <button class="ep-btn" data-ep="refresh">POST /refresh</button>
+      <button class="ep-btn" data-ep="logout">POST /logout</button>
+      <button class="ep-btn" data-ep="forgot-pw">POST /forgot-password</button>
+      <button class="ep-btn" data-ep="reset-pw">POST /reset-password</button>
+      <button class="ep-btn" data-ep="resend">POST /resend-verification</button>
+    </nav>
+
+
+    <!-- ── POST /register/candidate ── -->
+    <div id="ep-reg-candidate" class="ep-panel active">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/register/candidate</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">409 EMAIL_IN_USE</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+          <span class="status s4xx">429 RATE_LIMITED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">Rate Limit 10 / 15 min / IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(RegisterDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — registerCandidate</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - email, password" shape=box style="filled,rounded"]
+  B    [label="authRepository.findByEmail(email)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="email already exists?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw AppError 409\nEMAIL_IN_USE" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="bcrypt.hash(password, 12 rounds)" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  E    [label="generateToken() - 32B crypto random\nhashToken() - SHA-256 digest" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  F    [label="expiresAt = now + 24h"]
+  G    [label="db.transaction()\n- INSERT INTO users (email, password_hash, role=candidate)\n- INSERT INTO verification_tokens (user_id, token_hash, expires_at)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  H    [label="emailQueue.enqueue()\njobId: verify-email:user-email\nraw token in job payload" shape=box peripheries=2 style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="201 - Registration successful. Please verify your email." shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="yes"]
+  C -> D    [label="no"]
+  D -> E
+  E -> F
+  F -> G
+  G -> H
+  H -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="warn">
+        <strong>Performance Decision — Email Check Before Hash</strong>
+        <code>findByEmail</code> runs <em>before</em> <code>bcrypt.hash</code>. bcrypt at 12 rounds costs ~300 ms of CPU.
+        Checking the email first means duplicate-email rejections are fast (single DB query) without burning CPU on a hash
+        that will never be stored.
+      </aside>
+
+      <aside class="confirm">
+        <strong>Atomicity — Single Transaction</strong>
+        <code>createUserWithVerificationToken</code> opens one <code>db.transaction()</code> that inserts both the
+        <code>users</code> row and the <code>verification_tokens</code> row. If the server crashes between the two inserts,
+        neither row persists — preventing an orphaned user with no verification token.
+        The email is enqueued <em>after</em> the transaction commits.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /register/company ── -->
+    <div id="ep-reg-company" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/register/company</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">409 EMAIL_IN_USE</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+          <span class="status s4xx">429 RATE_LIMITED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">Rate Limit 10 / 15 min / IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(RegisterDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — registerCompany</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - email, password" shape=box style="filled,rounded"]
+  B    [label="authRepository.findByEmail(email)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="email already exists?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw AppError 409\nEMAIL_IN_USE" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="bcrypt.hash(password, 12 rounds)" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  E    [label="generateToken() - 32B crypto random\nhashToken() - SHA-256 digest" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  F    [label="expiresAt = now + 24h"]
+  G    [label="db.transaction()\n- INSERT INTO users (email, password_hash, role=company)\n- INSERT INTO verification_tokens (user_id, token_hash, expires_at)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  H    [label="emailQueue.enqueue()\njobId: verify-email:user-email" shape=box peripheries=2 style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="201 - Registration successful. Please verify your email." shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="yes"]
+  C -> D    [label="no"]
+  D -> E
+  E -> F
+  F -> G
+  G -> H
+  H -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Identical Flow — Different Role</strong>
+        <code>registerCompany</code> follows the exact same flow as <code>registerCandidate</code>.
+        The only difference is the <code>role</code> value inserted into the <code>users</code> table:
+        <code>'company'</code> vs <code>'candidate'</code>. Same middleware chain, same rate limit bucket
+        (<code>auth-register</code> key shared between both endpoints), same transaction pattern.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /login ── -->
+    <div id="ep-login" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/login</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 EMAIL_NOT_VERIFIED</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+          <span class="status s4xx">429 RATE_LIMITED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">Rate Limit 20 / 15 min / IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(LoginDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — login</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - email, password" shape=box style="filled,rounded"]
+  B    [label="authRepository.findByEmail(email)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="user found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw UnauthorizedError 401\nInvalid credentials" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="bcrypt.compare(password, user.password_hash)" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  E    [label="password valid?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR2 [label="throw UnauthorizedError 401\nInvalid credentials" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  F    [label="user.is_verified?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR3 [label="throw EmailNotVerifiedError 403\nEMAIL_NOT_VERIFIED" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  G    [label="generateAccessToken(userId, role)\nJWT - HS256 - 15 min expiry" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  H    [label="generateToken() + hashToken()\nRefresh token pair" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  I    [label="authRepository.saveRefreshToken(userId, tokenHash, expiresAt=+7d)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  J    [label="Set-Cookie: refreshToken=rawToken\nhttpOnly - Secure - SameSite=Strict - path=/api/v1/auth"]
+  OK   [label="200 - accessToken + user: id, email, role" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="no"]
+  C -> D    [label="yes"]
+  D -> E
+  E -> ERR2 [label="no"]
+  E -> F    [label="yes"]
+  F -> ERR3 [label="false"]
+  F -> G    [label="true"]
+  G -> H
+  H -> I
+  I -> J
+  J -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Anti-enumeration — Identical Error for Missing User vs Wrong Password</strong>
+        Both "user not found" and "wrong password" throw <code>UnauthorizedError("Invalid credentials")</code>.
+        An attacker cannot distinguish between a non-existent account and a wrong password from the response.
+      </aside>
+
+      <aside class="info">
+        <strong>Verification Check Order</strong>
+        The password is verified <em>before</em> checking <code>is_verified</code>.
+        This prevents an attacker from learning that an email is registered-but-unverified
+        by probing with arbitrary passwords — they must supply the correct password first.
+      </aside>
+    </div>
+
+
+    <!-- ── GET /verify-email ── -->
+    <div id="ep-verify-email" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/auth/verify-email?token=&lt;rawToken&gt;</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">400 INVALID_TOKEN</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">Rate Limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — verifyEmail</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="GET ?token=rawToken (query param)" shape=box style="filled,rounded"]
+  B    [label="hashToken(rawToken) - SHA-256" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  C    [label="authRepository.findVerificationToken(tokenHash)\nFilters: hash match + not expired" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  D    [label="token row found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw AppError 400\nINVALID_TOKEN\n(expired or already used)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E    [label="authRepository.markEmailVerified(tokenRow.user_id)\nUPDATE users SET is_verified = TRUE" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  F    [label="authRepository.deleteVerificationToken(tokenRow.id)\nDELETE FROM verification_tokens WHERE id = $1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  OK   [label="200 - Email verified successfully." shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> ERR1 [label="no"]
+  D -> E    [label="yes"]
+  E -> F
+  F -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Hash-Then-Lookup Pattern</strong>
+        The raw token from the URL is <em>never stored</em>. On receipt, it is hashed with SHA-256 and
+        the hash is used to query the DB. This means a DB breach exposes only hashes — an attacker cannot
+        derive the raw token needed to use them.
+      </aside>
+
+      <aside class="confirm">
+        <strong>Token Consumed on Use</strong>
+        <code>deleteVerificationToken</code> removes the token immediately after verification.
+        The same link cannot be used twice.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /refresh ── -->
+    <div id="ep-refresh" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/refresh</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">Rate Limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — refresh (Token Rotation)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST - Cookie: refreshToken=rawToken" shape=box style="filled,rounded"]
+  B    [label="cookie present?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR0 [label="throw UnauthorizedError 401\nMissing refresh token" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  C    [label="hashToken(rawToken) - SHA-256" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  D    [label="authRepository.findRefreshToken(tokenHash)\nJOINs users - fetches email + role\nFilters: hash match + not expired" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  E    [label="token row found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw UnauthorizedError 401\nInvalid or expired refresh token" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  F    [label="authRepository.deleteRefreshToken(oldTokenHash)\nDELETE FROM refresh_tokens - ROTATION STEP 1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  G    [label="generateToken() + hashToken()\nnewExpiresAt = now + 7d" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  H    [label="authRepository.saveRefreshToken(user_id, newTokenHash, newExpiresAt)\nINSERT - ROTATION STEP 2" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  I    [label="generateAccessToken(userId, role)\nJWT - 15 min" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  J    [label="Set-Cookie: refreshToken=newRawToken\nhttpOnly - Secure - SameSite=Strict"]
+  OK   [label="200 - accessToken + user: id, email, role" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> ERR0 [label="no"]
+  B -> C    [label="yes"]
+  C -> D
+  D -> E
+  E -> ERR1 [label="no"]
+  E -> F    [label="yes"]
+  F -> G
+  G -> H
+  H -> I
+  I -> J
+  J -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="warn">
+        <strong>Rotation Order — Delete Before Insert</strong>
+        The old token is deleted <em>before</em> the new one is inserted. This is intentional:
+        if the insert fails, the user is logged out (must re-authenticate) rather than having a dangling
+        old token that can't be rotated. Safety over convenience.
+      </aside>
+
+      <aside class="info">
+        <strong>JOIN in findRefreshToken — No Second Query Needed</strong>
+        <code>findRefreshToken</code> JOINs <code>users</code> to fetch <code>email</code> and <code>role</code>
+        in the same query. This avoids a second round-trip to look up the user by <code>user_id</code>
+        at rotation time — the <code>RefreshTokenRow</code> type includes those fields.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /logout ── -->
+    <div id="ep-logout" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/logout</span>
+        <div class="status-badges">
+          <span class="status s2xx">204 No Content</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">Rate Limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — logout</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST - Cookie: refreshToken (optional)" shape=box style="filled,rounded"]
+  B    [label="cookie present?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  NOOP [label="No-op - skip DB call\n(graceful, cookie already gone)"]
+  C    [label="hashToken(rawToken) - SHA-256" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  D    [label="authRepository.deleteRefreshToken(tokenHash)\nDELETE FROM refresh_tokens WHERE token_hash = $1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  E    [label="res.clearCookie - maxAge: 0\nExpires the cookie immediately in the browser"]
+  OK   [label="204 No Content" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> NOOP [label="no"]
+  B -> C    [label="yes"]
+  C -> D
+  D -> E
+  NOOP -> E
+  E -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="confirm">
+        <strong>Graceful No-op When Cookie is Absent</strong>
+        If the client has already cleared the cookie (or calls logout on an already-logged-out session),
+        the endpoint returns <code>204</code> without a DB call. No error is thrown. The cookie clear
+        is always sent regardless.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /forgot-password ── -->
+    <div id="ep-forgot-pw" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/forgot-password</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+          <span class="status s4xx">429 RATE_LIMITED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">Rate Limit 5 / 15 min / IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ForgotPasswordDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — forgotPassword</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - email" shape=box style="filled,rounded"]
+  B    [label="authRepository.findByEmail(email)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="user found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  SAFE [label="return SAFE_MESSAGE immediately\n(no email sent, no error thrown)" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  D    [label="authRepository.deleteUserPasswordResetTokens(user.id)\nDELETE FROM password_reset_tokens WHERE user_id = $1\n(purge old tokens first)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  E    [label="generateToken() + hashToken()\nexpiresAt = now + 1h" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  F    [label="authRepository.savePasswordResetToken(user_id, tokenHash, expiresAt)\nINSERT INTO password_reset_tokens" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  G    [label="emailQueue.enqueuePasswordResetEmail(email, rawToken)\njobId: password-reset:email - idempotent" shape=box peripheries=2 style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 - SAFE_MESSAGE (identical for both paths)" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> SAFE [label="no"]
+  C -> D    [label="yes"]
+  D -> E
+  E -> F
+  F -> G
+  G -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="warn">
+        <strong>Anti-enumeration — Same Message for All Outcomes</strong>
+        Whether the email exists or not, the response is always:
+        <em>"If that email exists, a password reset link has been sent."</em>
+        An attacker cannot probe for registered emails using this endpoint.
+      </aside>
+
+      <aside class="info">
+        <strong>Old Tokens Purged Before Issuing New One</strong>
+        <code>deleteUserPasswordResetTokens</code> removes all existing password reset tokens for the user
+        before creating a new one. This prevents a user from having multiple valid reset links floating
+        in email threads simultaneously.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /reset-password ── -->
+    <div id="ep-reset-pw" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/reset-password</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">400 INVALID_TOKEN</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">Rate Limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ResetPasswordDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — resetPassword</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - token, newPassword" shape=box style="filled,rounded"]
+  B    [label="hashToken(rawToken) - SHA-256" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  C    [label="authRepository.findPasswordResetToken(tokenHash)\nFilters: hash match + not expired" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  D    [label="token row found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw AppError 400\nINVALID_TOKEN\n(expired or already used)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E    [label="authRepository.deletePasswordResetToken(tokenRow.id)\nDELETE by id - consume token first" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  F    [label="bcrypt.hash(newPassword, 12 rounds)" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  G    [label="authRepository.updatePassword(user_id, passwordHash)\nUPDATE users SET password_hash = $1 WHERE id = $2" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  OK   [label="200 - Password reset successfully." shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> ERR1 [label="no"]
+  D -> E    [label="yes"]
+  E -> F
+  F -> G
+  G -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="confirm">
+        <strong>Token Consumed Before Password Update</strong>
+        <code>deletePasswordResetToken</code> runs <em>before</em> <code>updatePassword</code>.
+        If the password update fails, the token is already consumed — the user must request another
+        reset. This prevents the same token from being replayed if an error occurs mid-flow.
+      </aside>
+
+      <aside class="info">
+        <strong>No Rate Limiter on This Endpoint</strong>
+        Tokens are single-use (deleted on first use) and expire in 1 hour. A brute-force attack on
+        a reset token is impractical — the 32-byte random token has 256-bit entropy. A rate limiter
+        here would add operational friction (e.g., on mobile networks with shared IPs) for no real
+        security gain.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /resend-verification ── -->
+    <div id="ep-resend" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/resend-verification</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+          <span class="status s4xx">429 RATE_LIMITED</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">Rate Limit 5 / 15 min / IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ResendVerificationDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — resendVerificationEmail</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body - email" shape=box style="filled,rounded"]
+  B    [label="authRepository.findByEmail(email)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="user found AND not verified?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  SAFE [label="return SAFE_MESSAGE immediately\n(graceful no-op)" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  D    [label="generateToken() + hashToken()\nnewExpiresAt = now + 24h" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  E    [label="authRepository.deleteUserVerificationTokens(user.id)\nDELETE FROM verification_tokens WHERE user_id = $1\n(purge old tokens first)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  F    [label="authRepository.saveVerificationToken(user_id, tokenHash, expiresAt)\nINSERT INTO verification_tokens" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  G    [label="emailQueue.enqueueVerificationEmail(email, rawToken)\njobId: verify-email:user-email" shape=box peripheries=2 style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 - SAFE_MESSAGE (identical for all outcomes)" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> SAFE [label="no (not found or already verified)"]
+  C -> D    [label="yes"]
+  D -> E
+  E -> F
+  F -> G
+  G -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="warn">
+        <strong>Anti-enumeration — Same Message for All Outcomes</strong>
+        Whether the account doesn't exist, is already verified, or a new email was successfully sent —
+        the response is always identical:
+        <em>"If that email exists and is unverified, a new verification email has been sent."</em>
+      </aside>
+
+      <aside class="info">
+        <strong>Old Tokens Purged Before New One Is Issued</strong>
+        <code>deleteUserVerificationTokens</code> removes all prior verification tokens before inserting
+        a new one. This ensures there is always at most one valid verification link per user in circulation.
+      </aside>
+    </div>
+
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 3 — DATA MODEL
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-data-model" class="panel">
+    <p class="section-heading">Auth tables from migrations 001 + 005 — exact column names as defined in SQL</p>
+
+    <div class="diagram-card">
+      <h3>Entity Relationship Diagram — 4 auth tables</h3>
+      <div class="erd-grid">
+        <div class="erd-table">
+          <div class="erd-table-name">users</div>
+          <table>
+            <tr><td class="col-type">UUID</td><td class="col-name">id</td><td class="col-key pk">PK</td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">email</td><td class="col-key uk">UK</td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">password_hash</td><td></td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">role</td><td></td></tr>
+            <tr><td class="col-type">BOOLEAN</td><td class="col-name">is_verified</td><td></td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">created_at</td><td></td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">updated_at</td><td></td></tr>
+          </table>
+        </div>
+        <div class="erd-table">
+          <div class="erd-table-name">refresh_tokens</div>
+          <table>
+            <tr><td class="col-type">UUID</td><td class="col-name">id</td><td class="col-key pk">PK</td></tr>
+            <tr><td class="col-type">UUID</td><td class="col-name">user_id</td><td class="col-key fk">FK</td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">token_hash</td><td class="col-key uk">UK</td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">expires_at</td><td></td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">created_at</td><td></td></tr>
+          </table>
+        </div>
+        <div class="erd-table">
+          <div class="erd-table-name">verification_tokens</div>
+          <table>
+            <tr><td class="col-type">UUID</td><td class="col-name">id</td><td class="col-key pk">PK</td></tr>
+            <tr><td class="col-type">UUID</td><td class="col-name">user_id</td><td class="col-key fk">FK</td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">token_hash</td><td class="col-key uk">UK</td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">expires_at</td><td></td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">created_at</td><td></td></tr>
+          </table>
+        </div>
+        <div class="erd-table">
+          <div class="erd-table-name">password_reset_tokens</div>
+          <table>
+            <tr><td class="col-type">UUID</td><td class="col-name">id</td><td class="col-key pk">PK</td></tr>
+            <tr><td class="col-type">UUID</td><td class="col-name">user_id</td><td class="col-key fk">FK</td></tr>
+            <tr><td class="col-type">TEXT</td><td class="col-name">token_hash</td><td class="col-key uk">UK</td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">expires_at</td><td></td></tr>
+            <tr><td class="col-type">TIMESTAMPTZ</td><td class="col-name">created_at</td><td></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="erd-relations">
+        <code>users ||--o{ refresh_tokens (ON DELETE CASCADE)</code><br>
+        <code>users ||--o{ verification_tokens (ON DELETE CASCADE)</code><br>
+        <code>users ||--o{ password_reset_tokens (ON DELETE CASCADE)</code>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <aside class="info">
+          <strong>Why token_hash — not the raw token?</strong>
+          The raw token (32 bytes of crypto random) is sent to the user via email or cookie.
+          Only the SHA-256 hash is persisted in the database. This provides pre-image resistance:
+          even if the <code>token_hash</code> column is leaked in a DB breach, an attacker cannot
+          reverse-engineer the raw token. The hash is useless without the input.
+        </aside>
+
+        <aside class="info">
+          <strong>Why expires_at &gt; NOW() always in WHERE?</strong>
+          Expired tokens are not deleted eagerly. Instead, every lookup filters them out with
+          <code>AND expires_at &gt; NOW()</code>. Stale rows eventually accumulate but do no harm.
+          A scheduled cleanup job (Phase 8) will purge them. This avoids contention on high-write paths.
+        </aside>
+      </div>
+
+      <div>
+        <aside class="confirm">
+          <strong>Why role is CHECK-constrained at the DB level?</strong>
+          <code>role TEXT NOT NULL CHECK (role IN ('candidate', 'company', 'admin'))</code> —
+          the constraint lives in the database, not just in the application layer. Even if a bug
+          bypasses the service-layer validation, the DB will reject an invalid role. Defence in depth.
+        </aside>
+
+        <aside class="info">
+          <strong>Why findRefreshToken JOINs users?</strong>
+          <code>refresh_tokens</code> only stores <code>user_id</code>. At token rotation time,
+          the new access token needs <code>email</code> and <code>role</code> from the <code>users</code>
+          table. The JOIN fetches all needed data in one round-trip, so <code>RefreshTokenRow</code>
+          carries <code>email</code> and <code>role</code> fields.
+        </aside>
+
+        <aside class="confirm">
+          <strong>ON DELETE CASCADE on all foreign keys</strong>
+          All token tables declare <code>REFERENCES users(id) ON DELETE CASCADE</code>. Deleting a
+          user automatically removes all their tokens — no manual cleanup code needed for account deletion.
+        </aside>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 4 — SECURITY MODEL
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-security" class="panel">
+    <p class="section-heading">Rate limiter internals - token lifecycle - rate limit reference</p>
+
+    <div class="two-col">
+      <div class="diagram-card">
+        <h3>Redis Lua Script — Atomic Sliding Window Rate Limiter</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A [label="redis.eval() - all steps atomic on Redis server" shape=box style="filled,rounded"]
+  B [label="ZREMRANGEBYSCORE key -inf windowStart\nEvict all entries older than the window\nPrevents unbounded growth of the sorted set" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C [label="count = ZCARD key\nCount requests currently in the window" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  D [label="count >= limit?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  E [label="return count, 0\nDo NOT add this request\nNo ZADD - no false accounting" style=filled fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  F [label="ZADD key now uuidMember\nAdd this request with timestamp score" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  G [label="PEXPIRE key windowMs\nReset key TTL to one full window\nKey auto-expires when idle" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  H [label="return count+1, 1\nRequest is allowed" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  I [label="429 RATE_LIMITED - AppError -> next()" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  J [label="next() - continue to validate middleware" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> E [label="yes"]
+  D -> F [label="no"]
+  F -> G
+  G -> H
+  E -> I
+  H -> J
+}
+        </pre>
+
+        <aside class="warn">
+          <strong>Fail-Open on Redis Unavailability</strong>
+          If <code>redis.eval()</code> throws (Redis is down, network partition), the <code>catch</code> block
+          calls <code>next()</code> unconditionally — the request is allowed through.
+          This is an explicit availability-over-security trade-off: a Redis outage should not
+          lock out all users from authentication.
+        </aside>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Token Lifecycle — Three Parallel Tracks</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  subgraph cluster_VT {
+    label="Email Verification Track (24h expiry)"
+    bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3"
+    V1 [label="generateToken()\n32B crypto.randomBytes" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    V2 [label="hashToken()\nSHA-256 digest" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    V3 [label="Store hash in\nverification_tokens" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    V4 [label="Email raw token\nto user"]
+    V5 [label="User clicks link\n?token=rawToken"]
+    V6 [label="hashToken() again\nfindVerificationToken()" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    V7 [label="markEmailVerified()\ndeleteVerificationToken()" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    V1 -> V2 -> V3 -> V4 -> V5 -> V6 -> V7
+  }
+
+  subgraph cluster_RT {
+    label="Refresh Token Track (7d expiry)"
+    bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3"
+    R1 [label="generateToken()\n32B crypto.randomBytes" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    R2 [label="hashToken()\nSHA-256 digest" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    R3 [label="Store hash in\nrefresh_tokens" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    R4 [label="Set httpOnly cookie\nwith raw token"]
+    R5 [label="Browser sends cookie\non POST /refresh"]
+    R6 [label="hashToken() again\nfindRefreshToken() + JOIN users" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    R7 [label="deleteRefreshToken(old)\nsaveRefreshToken(new)\nRotation complete" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    R1 -> R2 -> R3 -> R4 -> R5 -> R6 -> R7
+  }
+
+  subgraph cluster_PR {
+    label="Password Reset Track (1h expiry)"
+    bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3"
+    P1 [label="generateToken()\n32B crypto.randomBytes" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    P2 [label="hashToken()\nSHA-256 digest" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    P3 [label="Store hash in\npassword_reset_tokens" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    P4 [label="Email raw token\nto user"]
+    P5 [label="User submits token\n+ new password"]
+    P6 [label="hashToken() again\nfindPasswordResetToken()" fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+    P7 [label="deletePasswordResetToken()\nupdatePassword()" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+    P1 -> P2 -> P3 -> P4 -> P5 -> P6 -> P7
+  }
+}
+        </pre>
+      </div>
+    </div>
+
+    <div class="rl-wrap">
+      <h3>Rate Limit Reference — all auth endpoints</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Method</th>
+            <th>Limit</th>
+            <th>Window</th>
+            <th>Scope</th>
+            <th>Redis Key Pattern</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>/auth/register/candidate</td>
+            <td>POST</td>
+            <td>10 req</td>
+            <td>15 min</td>
+            <td>per IP</td>
+            <td><code>prohire:rate_limit:ip:auth-register:&lt;ip&gt;</code></td>
+          </tr>
+          <tr>
+            <td>/auth/register/company</td>
+            <td>POST</td>
+            <td>10 req</td>
+            <td>15 min</td>
+            <td>per IP</td>
+            <td><code>prohire:rate_limit:ip:auth-register:&lt;ip&gt;</code> <em>(shared bucket)</em></td>
+          </tr>
+          <tr>
+            <td>/auth/login</td>
+            <td>POST</td>
+            <td>20 req</td>
+            <td>15 min</td>
+            <td>per IP</td>
+            <td><code>prohire:rate_limit:ip:auth-login:&lt;ip&gt;</code></td>
+          </tr>
+          <tr>
+            <td>/auth/verify-email</td>
+            <td>GET</td>
+            <td>—</td>
+            <td>—</td>
+            <td>none</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>/auth/refresh</td>
+            <td>POST</td>
+            <td>—</td>
+            <td>—</td>
+            <td>none</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>/auth/logout</td>
+            <td>POST</td>
+            <td>—</td>
+            <td>—</td>
+            <td>none</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>/auth/forgot-password</td>
+            <td>POST</td>
+            <td>5 req</td>
+            <td>15 min</td>
+            <td>per IP</td>
+            <td><code>prohire:rate_limit:ip:auth-forgot:&lt;ip&gt;</code></td>
+          </tr>
+          <tr>
+            <td>/auth/reset-password</td>
+            <td>POST</td>
+            <td>—</td>
+            <td>—</td>
+            <td>none</td>
+            <td>— <em>(token entropy makes brute-force impractical)</em></td>
+          </tr>
+          <tr>
+            <td>/auth/resend-verification</td>
+            <td>POST</td>
+            <td>5 req</td>
+            <td>15 min</td>
+            <td>per IP</td>
+            <td><code>prohire:rate_limit:ip:auth-resend:&lt;ip&gt;</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="info" style="margin-top: 1.5rem;">
+      <strong>Rate Limiter Headers</strong>
+      Every response from a rate-limited endpoint includes three headers:
+      <code>X-RateLimit-Limit</code> (max allowed),
+      <code>X-RateLimit-Remaining</code> (how many left in window),
+      <code>X-RateLimit-Reset</code> (epoch seconds when window resets).
+      These are set even when the request is allowed — not just on 429 responses.
+    </aside>
+
+    <aside class="warn" style="margin-top: 1rem;">
+      <strong>Phase 10 Deferred — Timing Attack Mitigation on resend-verification</strong>
+      The resend endpoint returns immediately after a DB no-op (user not found or already verified),
+      making it slightly faster than a path that actually sends an email. A sophisticated attacker with
+      timing access could enumerate accounts. Phase 10 will add a minimum response floor (~200 ms)
+      to eliminate this timing delta. Deferred because the 5 req/15 min rate limit makes timing-based
+      enumeration impractical in practice.
+    </aside>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 5 — CONCEPTS
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-concepts" class="panel">
+    <p class="section-heading">Request lifecycle - DTOs - types per layer - module boundaries</p>
+
+
+    <!-- ── Section 1: Request Lifecycle ── -->
+    <div class="diagram-card">
+      <h3>Section 1 — Request Lifecycle: what each stop actually does</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  C    [label="Client HTTP" shape=box style="filled,rounded"]
+  R    [label="Express Router\nmethod + path match"]
+  RL   [label="Rate Limiter\nredis.eval Lua"]
+  V    [label="validate()\nZod safeParse"]
+  AH   [label="asyncHandler()\nPromise catch boundary"]
+  CTL  [label="Controller fn\nextract DTO - call service"]
+  SVC  [label="Service\nbusiness logic"]
+  REPO [label="Repository\nraw SQL"]
+  DB   [label="PostgreSQL" shape=cylinder fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+  GEH  [label="Global Error Handler\n4-arg middleware" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E404    [label="404 before any middleware" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  RESP422 [label="422 response sent" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+
+  C -> R
+  R -> E404 [label="no match"]
+  R -> RL   [label="match - runs chain left->right"]
+  RL -> V   [label="allowed: next()"]
+  RL -> GEH [label=">= limit: next(AppError 429)"]
+  V -> AH      [label="valid: replaces req.body, next()"]
+  V -> RESP422 [label="invalid: res.json 422 directly"]
+  AH -> CTL
+  CTL -> SVC
+  SVC -> REPO
+  REPO -> DB
+  AH -> GEH [label="any throw -> .catch(next)" style=dashed]
+}
+      </pre>
+    </div>
+
+    <div class="rl-wrap">
+      <h3>Lifecycle annotation — what each stop does and does NOT do</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Stop</th>
+            <th>What it does</th>
+            <th>What it does NOT do</th>
+            <th>On failure</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Express Router</td>
+            <td>Matches HTTP method + path. Selects the middleware array for that route.</td>
+            <td>Runs no middleware itself — it only dispatches.</td>
+            <td>404 before any middleware if no route matches.</td>
+          </tr>
+          <tr>
+            <td>Rate Limiter</td>
+            <td><code>redis.eval(Lua)</code> — atomic sliding window. Sets <code>X-RateLimit-*</code> headers on every allowed request.</td>
+            <td>Does not touch <code>req.body</code> or validate anything.</td>
+            <td>Calls <code>next(new AppError(429))</code> → jumps straight to global error handler, skipping all remaining middleware.</td>
+          </tr>
+          <tr>
+            <td>validate()</td>
+            <td><code>schema.safeParse(req.body)</code>. On success, <strong>replaces <code>req.body</code></strong> with the parsed, type-safe DTO object, then calls <code>next()</code>.</td>
+            <td>Does not call <code>next(err)</code> on failure — it sends the response directly.</td>
+            <td>Sends <code>422 VALIDATION_ERROR</code> with field-level error array immediately. Chain stops here.</td>
+          </tr>
+          <tr>
+            <td>asyncHandler</td>
+            <td>Wraps the controller function: <code>Promise.resolve(fn(req,res,next)).catch(next)</code>. Any <code>throw</code> inside the controller or any service/repo it calls is caught and forwarded.</td>
+            <td>Does not execute any logic itself — it is only an error boundary.</td>
+            <td>Forwards thrown error to global error handler via <code>next(err)</code>.</td>
+          </tr>
+          <tr>
+            <td>Controller fn</td>
+            <td>Casts <code>req.body</code> to DTO type. Calls one service method. Writes JSON response and status code.</td>
+            <td>No business decisions. No SQL. No direct DB or Redis access.</td>
+            <td>Throws a typed <code>AppError</code> subclass from the service — propagates up through asyncHandler.</td>
+          </tr>
+          <tr>
+            <td>Service</td>
+            <td>All business logic: checks, decisions, hashing, JWT generation, BullMQ enqueue.</td>
+            <td>No <code>req</code>/<code>res</code> access. No direct SQL. Never imports <code>db</code> directly.</td>
+            <td>Throws typed <code>AppError</code> subclasses (<code>ConflictError</code>, <code>NotFoundError</code>, etc.).</td>
+          </tr>
+          <tr>
+            <td>Repository</td>
+            <td>All parameterised SQL. Opens and manages transactions. Returns typed row objects.</td>
+            <td>No business decisions. Does not call other repositories.</td>
+            <td>Let DB errors propagate — service catches <code>code === '23505'</code> unique-violation if needed.</td>
+          </tr>
+          <tr>
+            <td>Global Error Handler</td>
+            <td>The 4-argument <code>(err, req, res, next)</code> middleware registered last in <code>app.ts</code>. <code>AppError</code> subclasses → formatted JSON. Unknown errors → 500.</td>
+            <td>Never exposes stack traces in production.</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="info" style="margin-top:1.5rem;">
+      <strong>Why validate() sends the response directly instead of calling next(err)</strong>
+      Validation failures are not exceptional — they are expected user errors. Sending <code>422</code>
+      directly avoids routing through the global error handler and keeps the error format consistent
+      and predictable for clients. The global handler is for unexpected errors and thrown AppErrors.
+    </aside>
+
+
+    <!-- ── Section 2: DTOs — When and Why ── -->
+    <p class="section-heading" style="margin-top:2.5rem;">Section 2 — DTOs: when to create one and why</p>
+
+    <aside class="confirm">
+      <strong>The Rule</strong>
+      Create a DTO (Zod schema + <code>z.infer&lt;&gt;</code> type) whenever the request has a body that
+      needs validation — regardless of how many fields. One field still gets a DTO.
+      Route params, query params, and cookies are read directly; they do not get DTOs.
+    </aside>
+
+    <div class="rl-wrap" style="margin-top:1rem;">
+      <h3>DTO decision table — every auth endpoint</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Input source</th>
+            <th>DTO?</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>POST /register/candidate</td>
+            <td><code>req.body</code> — email, password</td>
+            <td>✓ <code>RegisterCandidateDto</code></td>
+            <td>Body needs Zod validation (format + constraints)</td>
+          </tr>
+          <tr>
+            <td>POST /register/company</td>
+            <td><code>req.body</code> — email, password, companyName</td>
+            <td>✓ <code>RegisterCompanyDto</code></td>
+            <td>Body needs Zod validation</td>
+          </tr>
+          <tr>
+            <td>POST /login</td>
+            <td><code>req.body</code> — email, password</td>
+            <td>✓ <code>LoginDto</code></td>
+            <td>Body needs Zod validation</td>
+          </tr>
+          <tr>
+            <td>GET /verify-email</td>
+            <td><code>req.query.token</code> — single string</td>
+            <td>✗ — read directly</td>
+            <td>Single query param; read as <code>req.query['token'] as string</code>. No validate() middleware applied.</td>
+          </tr>
+          <tr>
+            <td>POST /refresh</td>
+            <td><code>req.cookies.refreshToken</code></td>
+            <td>✗ — read directly</td>
+            <td>Comes from an httpOnly cookie, not the body. No validate() middleware needed.</td>
+          </tr>
+          <tr>
+            <td>POST /logout</td>
+            <td><code>req.cookies.refreshToken</code></td>
+            <td>✗ — read directly</td>
+            <td>Same — cookie value, not a body.</td>
+          </tr>
+          <tr>
+            <td>POST /forgot-password</td>
+            <td><code>req.body</code> — email</td>
+            <td>✓ <code>ForgotPasswordDto</code></td>
+            <td>Even one field gets a DTO — Zod validates email format and the inferred type flows into the service signature.</td>
+          </tr>
+          <tr>
+            <td>POST /reset-password</td>
+            <td><code>req.body</code> — token, password</td>
+            <td>✓ <code>ResetPasswordDto</code></td>
+            <td>Body needs Zod validation</td>
+          </tr>
+          <tr>
+            <td>POST /resend-verification</td>
+            <td><code>req.body</code> — email</td>
+            <td>✓ <code>ResendVerificationDto</code></td>
+            <td>Body needs Zod validation (one field — same reasoning as forgot-password)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="warn" style="margin-top:1rem;">
+      <strong>Why a single-field body still gets a DTO</strong>
+      <code>email: z.string().email()</code> validates format — you cannot do that with TypeScript alone.
+      The inferred type <code>z.infer&lt;typeof ForgotPasswordDto&gt;</code> flows into the service method signature,
+      giving you end-to-end type safety from HTTP body to DB call.
+      Consistency matters too: every body = a DTO, no exceptions to remember.
+    </aside>
+
+
+    <!-- ── Section 3: Types per layer ── -->
+    <p class="section-heading" style="margin-top:2.5rem;">Section 3 — TypeScript types: what belongs at each layer</p>
+
+    <div class="rl-wrap">
+      <h3>Two type files, two distinct concerns</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>What it defines</th>
+            <th>Direction</th>
+            <th>Used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>auth.dto.ts</code></td>
+            <td>Zod schemas + <code>z.infer&lt;&gt;</code> types for <strong>request input</strong> (e.g. <code>RegisterInput</code>, <code>LoginInput</code>)</td>
+            <td>HTTP → app (incoming)</td>
+            <td>Controller casts (<code>req.body as RegisterInput</code>) and service method parameter types</td>
+          </tr>
+          <tr>
+            <td><code>auth.types.ts</code></td>
+            <td>Interfaces for <strong>database rows</strong> with snake_case fields (e.g. <code>UserRow</code>, <code>TokenRow</code>, <code>RefreshTokenRow</code>)</td>
+            <td>DB → app (outgoing from DB)</td>
+            <td>Repository generics: <code>db.query&lt;UserRow&gt;(...)</code>. Maps 1-to-1 to column names.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rl-wrap" style="margin-top:1.5rem;">
+      <h3>Layer-by-layer type ownership</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Types it uses</th>
+            <th>Types it defines</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Controller</td>
+            <td>DTO input types from <code>auth.dto.ts</code></td>
+            <td>None</td>
+            <td><code>const body = req.body as RegisterInput</code>. No new types defined here.</td>
+          </tr>
+          <tr>
+            <td>Service</td>
+            <td>DTO input types as method params; Row types indirectly via repository return values</td>
+            <td>None (usually)</td>
+            <td>Service return types are annotated inline. Only add a separate interface if the shape is reused in 2+ places.</td>
+          </tr>
+          <tr>
+            <td>Repository</td>
+            <td>Row types from <code>auth.types.ts</code> as the generic on <code>db.query&lt;T&gt;</code></td>
+            <td>None — Row types live in <code>auth.types.ts</code>, not in the repo file</td>
+            <td><code>db.query&lt;UserRow&gt;('SELECT ...', [...])</code> — TypeScript knows the shape of <code>rows[0]</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="info" style="margin-top:1rem;">
+      <strong>Key insight — RefreshTokenRow extends TokenRow</strong>
+      <code>findRefreshToken</code> JOINs the <code>users</code> table to get <code>email</code> and
+      <code>role</code> in one query. So <code>RefreshTokenRow</code> extends <code>TokenRow</code>
+      and adds those two fields. Without the JOIN you'd need a second query and a separate user lookup —
+      more types, more round-trips, more code. The extended type makes the JOIN explicit and self-documenting.
+    </aside>
+
+    <aside class="confirm" style="margin-top:0.75rem;">
+      <strong>General rule for adding types</strong>
+      If a thing comes from the DB → it needs a Row type in <code>*.types.ts</code>.
+      If a thing comes from the HTTP body → it needs a Zod DTO in <code>*.dto.ts</code>.
+      If a service method returns a shape only it uses → annotate the return type inline, no extra interface.
+    </aside>
+
+
+    <!-- ── Section 4: Module Boundaries ── -->
+    <p class="section-heading" style="margin-top:2.5rem;">Section 4 — Module boundaries: controller / service / repository</p>
+
+    <div class="rl-wrap">
+      <h3>What each layer owns — hard rules</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Owns</th>
+            <th>Never touches</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Controller</td>
+            <td>HTTP in/out (<code>req</code>/<code>res</code>), DTO extraction, status codes, cookie writes</td>
+            <td>Business logic, SQL, direct DB/Redis access, decisions</td>
+          </tr>
+          <tr>
+            <td>Service</td>
+            <td>All business logic and decisions (check this, validate that, combine two things)</td>
+            <td>SQL, <code>req</code>/<code>res</code>, direct DB access — never imports <code>db</code> directly</td>
+          </tr>
+          <tr>
+            <td>Repository</td>
+            <td>All SQL, parameterised statements, transaction management</td>
+            <td>Business decisions, HTTP, calling other repositories</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rl-wrap" style="margin-top:1.5rem;">
+      <h3>Concrete decision rules — how to know which layer a piece of logic belongs to</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Question you ask</th>
+            <th>Answer → where it goes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>"Does this need an HTTP endpoint?"</td>
+            <td>You need a <strong>controller method</strong> for it. One method per endpoint.</td>
+          </tr>
+          <tr>
+            <td>"Is there a business decision here?" (check a condition, combine data from two places, apply a rule)</td>
+            <td><strong>Service</strong>. Even if the decision is one line — it belongs in the service.</td>
+          </tr>
+          <tr>
+            <td>"Does this touch the database?"</td>
+            <td><strong>Repository method</strong>. One repository method per distinct query or write.</td>
+          </tr>
+          <tr>
+            <td>"Do two service methods need the same SQL query?"</td>
+            <td>One <strong>repository method</strong> called from both. Never duplicate SQL in two repos.</td>
+          </tr>
+          <tr>
+            <td>"Does Service A need data that Service B already knows how to fetch?"</td>
+            <td>Service A <strong>injects Service B</strong> and calls it. Never repository A calls repository B.</td>
+          </tr>
+          <tr>
+            <td>"How do I decide what counts as a module?"</td>
+            <td>One business domain = one module. Auth, Jobs, Companies, Applications, Admin are the five modules in ProHire.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="warn" style="margin-top:1rem;">
+      <strong>When a module might have no repository</strong>
+      If a module only coordinates other services and never writes to the DB directly (e.g. a future
+      notification service that only enqueues BullMQ jobs and delegates data fetching to other services),
+      its service layer has no repository. The rule is: no SQL = no repository needed for that module.
+    </aside>
+
+    <aside class="info" style="margin-top:0.75rem;">
+      <strong>How to replicate this pattern in a new module (e.g. Phase 4 — Jobs)</strong>
+      1. Create <code>modules/jobs/</code> with <code>job.types.ts</code>, <code>job.dto.ts</code>,
+      <code>job.repository.ts</code>, <code>job.service.ts</code>, <code>job.controller.ts</code>,
+      <code>job.routes.ts</code>. 2. Register all three layers in <code>app.ts</code> container
+      (repository → service → controller). 3. Mount routes in <code>app.ts</code> under
+      <code>/api/v1/jobs</code>. 4. Apply <code>validate()</code> middleware at the route level for
+      any endpoint with a body. The middleware chain, DI wiring, and layer responsibilities are
+      identical to the auth module.
+    </aside>
+
+  </section>
+
+</main>
+
+<script>
+  // ─── Tab Switching (runs immediately, no viz dependency) ────
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const panels  = document.querySelectorAll('.panel');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const activePanel = document.getElementById('panel-' + target);
+      if (activePanel) {
+        activePanel.classList.add('active');
+        renderPanel('panel-' + target);
+        if (target === 'endpoints') {
+          const activeEp = activePanel.querySelector('.ep-panel.active');
+          if (activeEp) renderPanel(activeEp.id);
+        }
+      }
+    });
+  });
+
+  // ─── Endpoint Sub-tab Switching ─────────────────────────────
+  const epBtns   = document.querySelectorAll('.ep-btn');
+  const epPanels = document.querySelectorAll('.ep-panel');
+
+  epBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.ep;
+      epBtns.forEach(b => b.classList.remove('active'));
+      epPanels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const epPanel = document.getElementById('ep-' + target);
+      if (epPanel) {
+        epPanel.classList.add('active');
+        renderPanel('ep-' + target);
+      }
+    });
+  });
+
+  // ─── Viz.js Rendering ───────────────────────────────────────
+  const renderedPanels = new Set();
+  const viz = new Viz();
+
+  function renderPanel(panelId) {
+    if (renderedPanels.has(panelId)) return;
+    renderedPanels.add(panelId);
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.querySelectorAll('pre.graphviz').forEach(pre => {
+      const dot = pre.textContent;
+      viz.renderSVGElement(dot)
+        .then(svg => {
+          svg.setAttribute('class', 'viz-svg');
+          pre.replaceWith(svg);
+        })
+        .catch(e => {
+          pre.textContent = 'Diagram error: ' + e.message;
+          pre.style.color = '#ef4444';
+        });
+    });
+  }
+
+  // Render initially-visible panels
+  renderPanel('panel-architecture');
+  renderPanel('ep-reg-candidate');
+</script>
+
+</body>
+</html>

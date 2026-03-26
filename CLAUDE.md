@@ -314,67 +314,71 @@ export const globalErrorHandler = (
 };
 ```
 
-### Auth service (core methods)
+### Auth service — registration (atomic)
+
+Registration creates a user and their verification token **atomically** via `AuthRepository.createUserWithVerificationToken`, which opens a single `db.transaction` internally. The email is enqueued only after the transaction commits. This prevents the orphaned-user bug (user row exists but no verification token) that would occur if the server crashed between two separate DB calls.
 
 ```typescript
-// src/modules/auth/auth.service.ts
-import bcrypt from "bcrypt";
-import { AuthRepository } from "./auth.repository";
-import { RegisterCandidateInput } from "./auth.dto";
-import {
-  generateAccessToken,
-  generateRefreshToken,
-} from "../../shared/utils/jwt.utils";
-import { EmailQueue } from "../../core/queue/email.queue";
-import { EmailNotVerifiedError, AppError } from "../../core/errors/AppError";
+// Registration pattern — both registerCandidate and registerCompany follow this
+const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+const rawToken = generateToken();
+const tokenHash = hashToken(rawToken);
+const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
+const user = await this.authRepository.createUserWithVerificationToken({
+  email: input.email,
+  passwordHash,
+  role: "candidate", // or "company"
+  tokenHash,
+  expiresAt,
+});
+await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
+```
 
-const BCRYPT_ROUNDS = 12;
+The repository method owns the transaction — the service never touches `db` directly.
 
-export class AuthService {
-  constructor(
-    private readonly authRepository: AuthRepository,
-    private readonly emailQueue: EmailQueue,
-  ) {}
+### Resend verification endpoint
 
-  async registerCandidate(input: RegisterCandidateInput) {
-    const existing = await this.authRepository.findByEmail(input.email);
-    if (existing)
-      throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
+`POST /api/v1/auth/resend-verification` — allows unverified users to request a new verification email.
 
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    const user = await this.authRepository.createUser({
-      email: input.email,
-      passwordHash,
-      role: "candidate",
-    });
+**Behaviour:**
+- Body: `{ email: string }`
+- Always returns `200` with the same generic message regardless of outcome — no enumeration of account state
+- Only sends an email when the account exists and is unverified; silently no-ops otherwise
+- Rate limited: 5 requests per 15 minutes per IP
 
-    const token = await this.authRepository.createVerificationToken(user.id);
-    await this.emailQueue.enqueueVerificationEmail(user.email, token);
+> **Phase 10 (production hardening):** Add a minimum response time floor (~200 ms via
+> `sleep`) in `finally` to prevent timing-based enumeration. Deferred because the
+> endpoint is already rate-limited to 5 req / 15 min per IP, making timing attacks
+> impractical in the short term.
 
-    return { message: "Registration successful. Please verify your email." };
-  }
+**Frontend must handle:**
+1. After successful register (or on the "check your email" page), show a **resend button** with a countdown timer (e.g. 60 seconds) to prevent spam-clicking
+2. On `200`, reset the timer and show a success toast
+3. The timer state should survive page refreshes — persist the last-sent timestamp in `localStorage` and compute the remaining cooldown on mount
 
-  async login(email: string, password: string) {
-    const user = await this.authRepository.findByEmail(email);
-    if (!user) throw new AppError("Invalid credentials", 401, "UNAUTHORIZED");
+```typescript
+// Suggested resend timer hook (frontend)
+function useResendCooldown(cooldownMs = 60_000) {
+  const STORAGE_KEY = "prohire:resend-sent-at";
+  const [secondsLeft, setSecondsLeft] = useState(() => {
+    const sentAt = localStorage.getItem(STORAGE_KEY);
+    if (!sentAt) return 0;
+    const elapsed = Date.now() - Number(sentAt);
+    return Math.max(0, Math.ceil((cooldownMs - elapsed) / 1000));
+  });
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) throw new AppError("Invalid credentials", 401, "UNAUTHORIZED");
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const id = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [secondsLeft]);
 
-    if (!user.isVerified) throw new EmailNotVerifiedError();
+  const markSent = () => {
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+    setSecondsLeft(cooldownMs / 1000);
+  };
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      role: user.role,
-    });
-    const refreshToken = await this.authRepository.createRefreshToken(user.id);
-
-    return {
-      accessToken,
-      refreshToken,
-      user: { id: user.id, email: user.email, role: user.role },
-    };
-  }
+  return { secondsLeft, canResend: secondsLeft === 0, markSent };
 }
 ```
 
