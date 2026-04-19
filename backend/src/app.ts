@@ -16,9 +16,13 @@ import { EmailQueue } from "./core/queue/email.queue";
 import { AuthRepository } from "./modules/auth/auth.repository";
 import { AuthService } from "./modules/auth/auth.service";
 import { AuthController } from "./modules/auth/auth.controller";
+import { CompanyRepository } from "./modules/company/company.repository";
+import { CompanyService } from "./modules/company/company.service";
+import { CompanyController } from "./modules/company/company.controller";
 
 import healthRoutes from "./modules/health/health.routes";
 import authRoutes from "./modules/auth/auth.routes";
+import companyRoutes from "./modules/company/company.routes";
 
 const app = express();
 
@@ -69,10 +73,23 @@ container.register(
   "authController",
   () => new AuthController(container.resolve<AuthService>("authService")),
 );
+container.register(
+  "companyRepository",
+  () => new CompanyRepository(db),
+);
+container.register(
+  "companyService",
+  () => new CompanyService(container.resolve<CompanyRepository>("companyRepository")),
+);
+container.register(
+  "companyController",
+  () => new CompanyController(container.resolve<CompanyService>("companyService")),
+);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/health", healthRoutes);
-app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes(container.resolve<AuthController>("authController")));
+app.use("/api/v1/company", companyRoutes(container.resolve<CompanyController>("companyController")));
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction): void => {

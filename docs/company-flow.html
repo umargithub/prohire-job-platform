@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProHire — Company Module Flow Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --bg-card:   #161b22;
+      --bg-hover:  #1c2333;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #3b82f6;
+      --error:     #ef4444;
+      --success:   #22c55e;
+      --warn:      #eab308;
+      --purple:    #a855f7;
+      --green:     #059669;
+      --mono:      'JetBrains Mono', 'Fira Code', monospace;
+      --prose:     system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--prose);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ─── Header ─── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    header h1 {
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    header h1 .dim { color: var(--muted); }
+    header h1 .hi  { color: var(--accent); }
+
+    .phase-badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: #0d2040;
+      border: 1px solid var(--accent);
+      color: #93c5fd;
+    }
+
+    /* ─── Main Tabs ─── */
+    .main-tabs {
+      display: flex;
+      gap: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--prose);
+      font-size: 0.875rem;
+      padding: 0.5rem 1.25rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ─── Main Layout ─── */
+    main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+
+    .panel     { display: none; }
+    .panel.active { display: block; }
+
+    /* ─── Section heading ─── */
+    .section-heading {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ─── Diagram Card ─── */
+    .diagram-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+
+    .diagram-card h3 {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .viz-svg { display: block; }
+
+    /* ERD table styles */
+    .erd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .erd-table { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .erd-table-name { background: #0d2040; color: var(--accent); font-family: var(--mono); font-size: 0.85rem; font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    .erd-table table { width: 100%; border-collapse: collapse; }
+    .erd-table td { padding: 0.25rem 0.75rem; font-family: var(--mono); font-size: 0.8rem; border-bottom: 1px solid rgba(48,54,61,0.5); }
+    .erd-table tr:last-child td { border-bottom: none; }
+    .col-type { color: var(--muted); }
+    .col-name { color: var(--text); }
+    .col-key { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .col-key.pk { background: #0d2040; color: #93c5fd; border: 1px solid #3b82f6; }
+    .col-key.fk { background: #1a0f2e; color: #d8b4fe; border: 1px solid #a855f7; }
+    .col-key.uk { background: #0a2010; color: #86efac; border: 1px solid #22c55e; }
+    .erd-relations { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); line-height: 2; }
+    /* viz.js SVG */
+    .viz-svg text { font-family: Helvetica, sans-serif; }
+
+    /* ─── Two-column grid ─── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ─── Endpoint Sub-tabs ─── */
+    .endpoint-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .ep-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.4rem 0.85rem;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .ep-btn:hover  { color: var(--text); }
+    .ep-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .ep-panel     { display: none; }
+    .ep-panel.active { display: block; }
+
+    /* ─── Route Badge ─── */
+    .route-badge {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .method {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.18rem 0.55rem;
+      border-radius: 4px;
+    }
+
+    .method.get    { background: #134e4a; color: #5eead4; }
+    .method.post   { background: #1e3a5f; color: #93c5fd; }
+    .method.put    { background: #431407; color: #fdba74; }
+    .method.patch  { background: #3b0764; color: #d8b4fe; }
+    .method.delete { background: #450a0a; color: #fca5a5; }
+
+    .route-path {
+      font-family: var(--mono);
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+
+    .status-badges { display: flex; gap: 0.3rem; margin-left: auto; }
+
+    .status {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .s2xx { background: #14532d; color: #86efac; }
+    .s4xx { background: #7f1d1d; color: #fca5a5; }
+
+    /* ─── Middleware Strip ─── */
+    .middleware-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+      padding: 0.75rem 1rem;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .mw-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-right: 0.25rem;
+    }
+
+    .pill {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .pill.on {
+      background: #0d2040;
+      border-color: var(--accent);
+      color: #93c5fd;
+    }
+
+    .pill.off {
+      background: transparent;
+      border-color: #2a2a2a;
+      color: #3a3a3a;
+      text-decoration: line-through;
+    }
+
+    .pill-arrow { color: var(--muted); font-size: 0.75rem; }
+
+    /* ─── Callout Boxes ─── */
+    aside {
+      border-left: 3px solid;
+      padding: 0.7rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.83rem;
+      line-height: 1.65;
+    }
+
+    aside.info    { border-color: var(--accent); background: #0a1628; }
+    aside.warn    { border-color: var(--warn);   background: #171208; }
+    aside.confirm { border-color: var(--success); background: #071410; }
+    aside.danger  { border-color: var(--error);   background: #140808; }
+
+    aside strong {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.35rem;
+    }
+
+    aside.info    strong { color: var(--accent); }
+    aside.warn    strong { color: var(--warn); }
+    aside.confirm strong { color: var(--success); }
+    aside.danger  strong { color: var(--error); }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: #1e2535;
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      color: #c9d1d9;
+    }
+
+    /* ─── Rate Limit / Reference Table ─── */
+    .rl-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 1.5rem;
+    }
+
+    .rl-wrap h3 {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 1rem 1.25rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rl-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .rl-table th {
+      text-align: left;
+      padding: 0.5rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 500;
+    }
+
+    .rl-table td {
+      padding: 0.6rem 1.25rem;
+      border-bottom: 1px solid #161b22;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      vertical-align: top;
+    }
+
+    .rl-table tr:last-child td { border-bottom: none; }
+    .rl-table tr:hover td { background: var(--bg-hover); }
+
+    .rl-table td:first-child { color: #93c5fd; }
+
+    /* ─── Print ─── */
+    @media print {
+      header { position: static; }
+      .main-tabs, .endpoint-tabs { display: none !important; }
+      .panel, .ep-panel { display: block !important; }
+      .diagram-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; }
+      aside { break-inside: avoid; }
+      body { background: #fff; color: #111; }
+      .muted, .mw-label { color: #555; }
+      .pill.off { color: #aaa; border-color: #ddd; }
+      .pill.on  { background: #e0eaff; border-color: #3b82f6; color: #1e3a5f; }
+      h1, h3, .section-heading { color: #111; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1><span class="dim">ProHire /</span> <span class="hi">Company Module</span> <span class="dim">— Flow Visualizer</span></h1>
+    <span class="phase-badge">Phase 4</span>
+  </div>
+  <nav class="main-tabs">
+    <button class="tab-btn active" data-tab="architecture">Architecture</button>
+    <button class="tab-btn" data-tab="endpoints">Endpoints</button>
+    <button class="tab-btn" data-tab="data-model">Data Model</button>
+    <button class="tab-btn" data-tab="cache-model">Cache Model</button>
+    <button class="tab-btn" data-tab="concepts">Concepts</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 1 — ARCHITECTURE
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-architecture" class="panel active">
+    <p class="section-heading">Bird's-eye view of all layers + DI wiring</p>
+
+    <div class="diagram-card">
+      <h3>Request Flow — CLIENT → MIDDLEWARE → CONTROLLER → SERVICE → REPOSITORY → INFRASTRUCTURE</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  fontname="Helvetica"
+  fontcolor="#e6edf3"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3"]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  subgraph cluster_CLIENT {
+    label="CLIENT" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    REQ [label="HTTP Request\n(Bearer token required)" shape=box style="filled,rounded" fillcolor="#1c2333"]
+  }
+  subgraph cluster_MW {
+    label="MIDDLEWARE CHAIN" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    AT  [label="authenticate()\nVerify JWT - attach req.user"]
+    AZ  [label="authorize('company')\nCheck role = company"]
+    ZV  [label="validate(Dto)\nZod schema - 422 on fail\n(POST and PUT routes only)"]
+    AH  [label="asyncHandler()\nError boundary - catches throws"]
+  }
+  subgraph cluster_CTL {
+    label="CONTROLLER" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    CC  [label="CompanyController\nextract DTO + params from req\ncall service method\nreturn JSON response"]
+  }
+  subgraph cluster_SVC {
+    label="SERVICE" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    CS  [label="CompanyService\ncache-aside reads\ninvalidate on writes\nownership via resolveCompany()"]
+  }
+  subgraph cluster_REPO {
+    label="REPOSITORY" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    CR  [label="CompanyRepository\nparameterized SQL only\nno transactions needed here"]
+  }
+  subgraph cluster_INFRA {
+    label="INFRASTRUCTURE" bgcolor="#0f1117" color="#30363d" fontcolor="#e6edf3" fontsize=12
+    PG  [label="PostgreSQL 16\npg Pool" shape=cylinder style=filled fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+    RD  [label="Redis 7\nioredis" shape=cylinder style=filled fillcolor="#1a1a2e" color="#3b82f6" fontcolor="#93c5fd"]
+  }
+
+  ATERR [label="401 UNAUTHORIZED\n(AppError)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  AZERR [label="403 FORBIDDEN\n(AppError)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  ZVERR [label="422 VALIDATION_ERROR\n(sent directly)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+
+  REQ -> AT
+  AT -> ATERR [label="invalid/missing JWT"]
+  AT -> AZ    [label="req.user attached"]
+  AZ -> AZERR [label="role != company"]
+  AZ -> ZV    [label="authorized"]
+  ZV -> AH    [label="validated DTO"]
+  ZV -> ZVERR [label="422 VALIDATION_ERROR"]
+  AH -> CC
+  CC -> CS    [label="typed DTO + params"]
+  CS -> CR    [label="repo calls"]
+  CR -> PG    [label="raw SQL + params"]
+  CS -> RD    [label="getOrSet / invalidate" dir=both]
+}
+      </pre>
+    </div>
+
+    <div class="diagram-card">
+      <h3>DI Container Wiring — app.ts registration order</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3"]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  DB  [label="pg Pool\ndb.ts" shape=cylinder fillcolor="#1a1a2e" color="#6b7280" fontcolor="#9ca3af"]
+  CR  [label="CompanyRepository" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  CS  [label="CompanyService" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  CC  [label="CompanyController" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+  RT  [label="companyRoutes()\nRouter"]
+  MW  [label="Express App\n/api/v1/company/*"]
+
+  DB -> CR [label="new CompanyRepository(db)"]
+  CR -> CS [label="new CompanyService(repo)"]
+  CS -> CC [label="new CompanyController(service)"]
+  CC -> RT [label="container.resolve('companyController')"]
+  RT -> MW
+}
+      </pre>
+    </div>
+
+    <aside class="info">
+      <strong>Architecture Rule</strong>
+      Controllers are thin — they only extract a validated DTO and route params, call one service method, and return JSON.
+      All business logic (cache lookups, ownership checks, cache invalidation) lives in <code>CompanyService</code>.
+      All SQL lives in <code>CompanyRepository</code>. No cross-module repository imports.
+    </aside>
+
+    <aside class="warn">
+      <strong>No Rate Limiting on Company Endpoints</strong>
+      Unlike the auth module, company endpoints carry no per-IP rate limits. They are protected instead by
+      requiring a valid JWT (<code>authenticate</code>) with <code>role = 'company'</code> (<code>authorize</code>).
+      A global rate limiter (500 req/min) is applied at the Express app level and covers all routes.
+    </aside>
+
+    <aside class="confirm">
+      <strong>Error Propagation</strong>
+      Services throw typed <code>AppError</code> subclasses (<code>NotFoundError</code>, <code>ConflictError</code>).
+      <code>asyncHandler</code> catches any thrown error and forwards it to the global error handler middleware,
+      which formats the JSON response. Stack traces are never exposed in production.
+    </aside>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 2 — ENDPOINTS
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-endpoints" class="panel">
+    <p class="section-heading">8 endpoints — select one to inspect its middleware chain and logic flow</p>
+
+    <nav class="endpoint-tabs">
+      <button class="ep-btn active" data-ep="create-profile">POST /profile</button>
+      <button class="ep-btn" data-ep="get-profile">GET /profile</button>
+      <button class="ep-btn" data-ep="update-profile">PUT /profile</button>
+      <button class="ep-btn" data-ep="create-job">POST /jobs</button>
+      <button class="ep-btn" data-ep="list-jobs">GET /jobs</button>
+      <button class="ep-btn" data-ep="get-job">GET /jobs/:id</button>
+      <button class="ep-btn" data-ep="update-job">PUT /jobs/:id</button>
+      <button class="ep-btn" data-ep="delete-job">DELETE /jobs/:id</button>
+    </nav>
+
+
+    <!-- ── POST /profile ── -->
+    <div id="ep-create-profile" class="ep-panel active">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">409 CONFLICT</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpsertCompanyProfileDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — createProfile</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body — name, description?, website?, logo_url?" shape=box style="filled,rounded"]
+  B    [label="companyRepository.findCompanyByOwnerId(userId)\nSELECT * FROM companies WHERE owner_id = $1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="company already exists?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw ConflictError 409\nCompany profile already exists." shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="companyRepository.createCompany(userId, input)\nINSERT INTO companies (...) RETURNING *" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  OK   [label="201 — { success: true, data: CompanyRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="yes"]
+  C -> D    [label="no"]
+  D -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>One Profile Per User — DB Enforced</strong>
+        The <code>companies</code> table declares <code>owner_id UUID UNIQUE</code>, so even if two concurrent
+        requests bypass the service-layer check, PostgreSQL will reject the second <code>INSERT</code>
+        with a unique-violation. Defence in depth.
+      </aside>
+    </div>
+
+
+    <!-- ── GET /profile ── -->
+    <div id="ep-get-profile" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — getProfile (cache-aside)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="req.user.userId (from JWT)" shape=box style="filled,rounded"]
+  B    [label="key = prohire:company:profile:{userId}" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  C    [label="redis.get(key)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  D    [label="cache hit?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  E    [label="return JSON.parse(cached)\nTTL = 300s (COMPANY_PROFILE)" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  F    [label="companyRepository.findCompanyByOwnerId(userId)\nSELECT * FROM companies WHERE owner_id = $1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  G    [label="row found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nCompany profile not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  H    [label="redis.setex(key, 300, JSON.stringify(row))" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 — { success: true, data: CompanyRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> E    [label="yes"]
+  D -> F    [label="no (cache miss)"]
+  F -> G
+  G -> ERR1 [label="null"]
+  G -> H    [label="found"]
+  H -> OK
+  E -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Cache-Aside Pattern (<code>getOrSet</code>)</strong>
+        The service calls <code>getOrSet(key, TTL.COMPANY_PROFILE, fetchFn)</code>. On a cache hit,
+        the DB is never queried. On a miss, the fetch function runs, the result is written to Redis,
+        and the data is returned. TTL is 300 seconds (5 minutes), defined as a named constant in
+        <code>ttl.constants.ts</code> — never hardcoded inline.
+      </aside>
+    </div>
+
+
+    <!-- ── PUT /profile ── -->
+    <div id="ep-update-profile" class="ep-panel">
+      <div class="route-badge">
+        <span class="method put">PUT</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpsertCompanyProfileDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — updateProfile (write-through cache invalidation)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="PUT body — name, description?, website?, logo_url?" shape=box style="filled,rounded"]
+  B    [label="companyRepository.updateCompany(userId, input)\nUPDATE companies SET ... WHERE owner_id = $5 RETURNING *" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="row returned?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nCompany profile not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="invalidate(prohire:company:profile:{userId})\nredis.keys(pattern) → redis.del(...keys)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 — { success: true, data: CompanyRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="null"]
+  C -> D    [label="updated row"]
+  D -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="warn">
+        <strong>Write-Through: Invalidate, Never Update in Place</strong>
+        On every mutation the cache key is deleted (not overwritten). The next GET request will
+        repopulate it from the DB. This avoids stale-read bugs where the cache holds an old version
+        of the profile after a field is changed.
+      </aside>
+    </div>
+
+
+    <!-- ── POST /jobs ── -->
+    <div id="ep-create-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/company/jobs</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(CreateJobDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — createJob</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="POST body — title, description, location?, job_type, experience_level, salary_min?, salary_max?" shape=box style="filled,rounded"]
+  B    [label="resolveCompany(userId)\nSELECT * FROM companies WHERE owner_id = $1" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="company found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nCompany profile not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  D    [label="companyRepository.createJob(company.id, input)\nINSERT INTO jobs (...) RETURNING *" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  E    [label="invalidate(prohire:company:jobs:{company.id})\nBust the job list cache" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="201 — { success: true, data: JobRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> ERR1 [label="null"]
+  C -> D    [label="found"]
+  D -> E
+  E -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>resolveCompany — Ownership Gate</strong>
+        Every job operation first calls <code>resolveCompany(userId)</code> to look up the company
+        by <code>owner_id</code>. This enforces that the requesting user owns the company before any
+        job query runs. It also provides <code>company.id</code> needed for all job queries.
+        If no profile exists, the operation fails with 404 before touching the <code>jobs</code> table.
+      </aside>
+
+      <aside class="warn">
+        <strong>Salary Cross-Field Validation</strong>
+        <code>CreateJobDto</code> includes a Zod <code>.refine()</code> that enforces
+        <code>salary_max >= salary_min</code>. The same constraint is also declared at the DB level
+        as a <code>CHECK</code> constraint — both layers catch it independently.
+      </aside>
+    </div>
+
+
+    <!-- ── GET /jobs ── -->
+    <div id="ep-list-jobs" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/jobs</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — listJobs (cache-aside)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="req.user.userId (from JWT)" shape=box style="filled,rounded"]
+  B    [label="resolveCompany(userId) → company.id" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="key = prohire:company:jobs:{company.id}" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  D    [label="redis.get(key)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  E    [label="cache hit?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  F    [label="return JSON.parse(cached)\nTTL = 300s (COMPANY_JOBS)" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  G    [label="companyRepository.findJobsByCompanyId(company.id)\nSELECT * FROM jobs WHERE company_id = $1 ORDER BY created_at DESC" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  H    [label="redis.setex(key, 300, JSON.stringify(rows))" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 — { success: true, data: JobRow[] }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> E
+  E -> F    [label="yes"]
+  E -> G    [label="no (cache miss)"]
+  G -> H
+  H -> OK
+  F -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Cache Keyed by company.id, Not userId</strong>
+        The job list cache key uses <code>company.id</code> (the primary key of the companies table),
+        not the user's ID. This is intentional: future invalidation by company ID is consistent whether
+        triggered by a profile or a job mutation. <code>resolveCompany</code> bridges the gap.
+      </aside>
+    </div>
+
+
+    <!-- ── GET /jobs/:id ── -->
+    <div id="ep-get-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — getJob (cache-aside with ownership)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="req.params.id (jobId) + req.user.userId" shape=box style="filled,rounded"]
+  B    [label="resolveCompany(userId) → company.id" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="key = prohire:job:{jobId}" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  D    [label="redis.get(key)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  E    [label="cache hit?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  F    [label="return JSON.parse(cached)\nTTL = 600s (JOB_DETAIL)" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  G    [label="companyRepository.findJobById(jobId, company.id)\nSELECT * FROM jobs WHERE id = $1 AND company_id = $2" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  H    [label="row found?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nJob not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  I    [label="redis.setex(key, 600, JSON.stringify(row))" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 — { success: true, data: JobRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> E
+  E -> F    [label="yes"]
+  E -> G    [label="no (cache miss)"]
+  G -> H
+  H -> ERR1 [label="null"]
+  H -> I    [label="found"]
+  I -> OK
+  F -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="info">
+        <strong>Ownership Enforced in SQL</strong>
+        The query uses <code>WHERE id = $1 AND company_id = $2</code>. A company can only retrieve
+        jobs that belong to them — a job owned by a different company returns null and triggers
+        <code>NotFoundError</code>. No need for a separate ownership check in the service.
+      </aside>
+
+      <aside class="warn">
+        <strong>Longer TTL for Job Detail</strong>
+        Job detail is cached for 600 seconds (10 minutes) vs 300 seconds for the job list.
+        Single-item lookups are more expensive to invalidate precisely, so a longer TTL is acceptable.
+        Both the PUT and DELETE endpoints invalidate <code>prohire:job:{jobId}</code> on write.
+      </aside>
+    </div>
+
+
+    <!-- ── PUT /jobs/:id ── -->
+    <div id="ep-update-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method put">PUT</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+          <span class="status s4xx">422 VALIDATION_ERROR</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpdateJobDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — updateJob (dual cache invalidation)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="req.params.id (jobId) + PUT body (partial)" shape=box style="filled,rounded"]
+  B    [label="resolveCompany(userId) → company.id" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="companyRepository.updateJob(jobId, company.id, input)\nUPDATE jobs SET ... WHERE id=$9 AND company_id=$10 RETURNING *\n(COALESCE for partial updates)" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  D    [label="row returned?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nJob not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E    [label="invalidate(prohire:job:{jobId})" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  F    [label="invalidate(prohire:company:jobs:{company.id})" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="200 — { success: true, data: JobRow }" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> ERR1 [label="null"]
+  D -> E    [label="updated row"]
+  E -> F
+  F -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="confirm">
+        <strong>COALESCE — Partial Update Without Overwriting</strong>
+        <code>UpdateJobDto</code> makes every field optional. The SQL uses <code>COALESCE($n, column)</code>
+        so fields absent from the request body keep their current DB value. No field is accidentally
+        nulled out when the client only updates one or two fields.
+      </aside>
+
+      <aside class="warn">
+        <strong>Dual Cache Invalidation</strong>
+        A job update invalidates two keys: the individual job detail (<code>prohire:job:{jobId}</code>)
+        and the company job list (<code>prohire:company:jobs:{company.id}</code>). Both must be busted
+        because the list returns the full <code>JobRow</code> objects and would otherwise serve stale data.
+      </aside>
+    </div>
+
+
+    <!-- ── DELETE /jobs/:id ── -->
+    <div id="ep-delete-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method delete">DELETE</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">204 No Content</span>
+          <span class="status s4xx">404 NOT_FOUND</span>
+          <span class="status s4xx">401 UNAUTHORIZED</span>
+          <span class="status s4xx">403 FORBIDDEN</span>
+        </div>
+      </div>
+
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Logic Flow — deleteJob (soft delete)</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A    [label="req.params.id (jobId)" shape=box style="filled,rounded"]
+  B    [label="resolveCompany(userId) → company.id" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  C    [label="companyRepository.deactivateJob(jobId, company.id)\nUPDATE jobs SET is_active = FALSE, updated_at = NOW()\nWHERE id = $1 AND company_id = $2" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  D    [label="rowCount > 0?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  ERR1 [label="throw NotFoundError 404\nJob not found" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E    [label="invalidate(prohire:job:{jobId})" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  F    [label="invalidate(prohire:company:jobs:{company.id})" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  OK   [label="204 No Content — res.send()" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> ERR1 [label="false"]
+  D -> E    [label="true"]
+  E -> F
+  F -> OK
+}
+        </pre>
+      </div>
+
+      <aside class="danger">
+        <strong>Soft Delete — Job Row Is Never Hard-Deleted</strong>
+        <code>deactivateJob</code> sets <code>is_active = FALSE</code>. The row remains in the
+        <code>jobs</code> table. This preserves referential integrity for future <code>applications</code>
+        rows that reference this job, and allows admin recovery. Candidates browsing jobs filter by
+        <code>is_active = TRUE</code> (Phase 5), so inactive jobs vanish from public listings.
+      </aside>
+    </div>
+
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 3 — DATA MODEL
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-data-model" class="panel">
+    <p class="section-heading">PostgreSQL schema — companies and jobs tables</p>
+
+    <div class="diagram-card">
+      <h3>Entity Relationship — users → companies → jobs</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=record]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  users [label="{ users | id UUID PK\l | email TEXT UK\l | role TEXT\l | is_verified BOOL\l }" fillcolor="#1a1a2e" color="#6b7280" fontcolor="#9ca3af"]
+
+  companies [label="{ companies | id UUID PK\l | owner_id UUID FK,UK → users\l | name TEXT\l | description TEXT?\l | website TEXT?\l | logo_url TEXT?\l | created_at, updated_at\l }" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  jobs [label="{ jobs | id UUID PK\l | company_id UUID FK → companies\l | title TEXT\l | description TEXT\l | location TEXT?\l | job_type TEXT CHECK\l | experience_level TEXT CHECK\l | salary_min NUMERIC?\l | salary_max NUMERIC?\l | is_active BOOL DEFAULT TRUE\l | created_at, updated_at\l }" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  users -> companies [label="1 : 1  ON DELETE CASCADE"]
+  companies -> jobs  [label="1 : N  ON DELETE CASCADE"]
+}
+      </pre>
+    </div>
+
+    <div class="erd-grid">
+      <div class="erd-table">
+        <div class="erd-table-name">companies</div>
+        <table>
+          <tr><td><span class="col-key pk">PK</span></td><td class="col-name">id</td><td class="col-type">UUID</td></tr>
+          <tr><td><span class="col-key fk">FK</span> <span class="col-key uk">UK</span></td><td class="col-name">owner_id</td><td class="col-type">UUID → users</td></tr>
+          <tr><td></td><td class="col-name">name</td><td class="col-type">TEXT NOT NULL</td></tr>
+          <tr><td></td><td class="col-name">description</td><td class="col-type">TEXT nullable</td></tr>
+          <tr><td></td><td class="col-name">website</td><td class="col-type">TEXT nullable</td></tr>
+          <tr><td></td><td class="col-name">logo_url</td><td class="col-type">TEXT nullable</td></tr>
+          <tr><td></td><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+          <tr><td></td><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+        </table>
+      </div>
+
+      <div class="erd-table">
+        <div class="erd-table-name">jobs</div>
+        <table>
+          <tr><td><span class="col-key pk">PK</span></td><td class="col-name">id</td><td class="col-type">UUID</td></tr>
+          <tr><td><span class="col-key fk">FK</span></td><td class="col-name">company_id</td><td class="col-type">UUID → companies</td></tr>
+          <tr><td></td><td class="col-name">title</td><td class="col-type">TEXT NOT NULL</td></tr>
+          <tr><td></td><td class="col-name">description</td><td class="col-type">TEXT NOT NULL</td></tr>
+          <tr><td></td><td class="col-name">location</td><td class="col-type">TEXT nullable</td></tr>
+          <tr><td></td><td class="col-name">job_type</td><td class="col-type">TEXT CHECK</td></tr>
+          <tr><td></td><td class="col-name">experience_level</td><td class="col-type">TEXT CHECK</td></tr>
+          <tr><td></td><td class="col-name">salary_min</td><td class="col-type">NUMERIC(12,2)?</td></tr>
+          <tr><td></td><td class="col-name">salary_max</td><td class="col-type">NUMERIC(12,2)?</td></tr>
+          <tr><td></td><td class="col-name">is_active</td><td class="col-type">BOOL DEFAULT TRUE</td></tr>
+          <tr><td></td><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+          <tr><td></td><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-top:1.5rem;">
+      <div>
+        <aside class="info">
+          <strong>owner_id UNIQUE — One Company Per User</strong>
+          <code>owner_id UUID NOT NULL UNIQUE REFERENCES users(id)</code> — the <code>UNIQUE</code> constraint
+          ensures a user account can own at most one company profile. The service-layer check
+          (<code>findCompanyByOwnerId</code> before insert) provides a friendly 409 error;
+          the DB constraint is the hard safety net.
+        </aside>
+
+        <aside class="confirm">
+          <strong>ON DELETE CASCADE — Automatic Cleanup</strong>
+          Deleting a user cascades to their company row. Deleting a company row cascades to all its jobs.
+          No manual cleanup code is needed for account deletion. Future <code>applications</code> rows
+          that reference <code>job_id</code> will also cascade.
+        </aside>
+      </div>
+
+      <div>
+        <aside class="warn">
+          <strong>CHECK Constraints — Defence in Depth</strong>
+          <code>job_type IN ('remote', 'hybrid', 'onsite')</code> and
+          <code>experience_level IN ('junior', 'mid', 'senior')</code> are enforced both by Zod enums
+          and PostgreSQL CHECK constraints. The salary range constraint
+          (<code>salary_max >= salary_min</code>) is also duplicated at both layers.
+          A bug bypassing the service can never corrupt the DB.
+        </aside>
+
+        <aside class="danger">
+          <strong>is_active — Soft Delete Column</strong>
+          Jobs are never physically deleted. <code>is_active = FALSE</code> hides them from candidate
+          browsing (Phase 5 will filter on <code>WHERE is_active = TRUE</code>) while preserving
+          referential integrity for application records. A DB index on <code>is_active</code> ensures
+          this filter is cheap.
+        </aside>
+      </div>
+    </div>
+
+    <div class="rl-wrap" style="margin-top:1.5rem;">
+      <h3>Database indexes on jobs table</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>Column</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>idx_jobs_company_id</td>
+            <td><code>company_id</code></td>
+            <td>Fast lookup of all jobs for a company (listJobs, invalidation)</td>
+          </tr>
+          <tr>
+            <td>idx_jobs_is_active</td>
+            <td><code>is_active</code></td>
+            <td>Phase 5 candidate browsing filters exclusively on <code>is_active = TRUE</code></td>
+          </tr>
+          <tr>
+            <td>idx_jobs_job_type</td>
+            <td><code>job_type</code></td>
+            <td>Phase 5 job type filter (remote / hybrid / onsite)</td>
+          </tr>
+          <tr>
+            <td>idx_jobs_experience_level</td>
+            <td><code>experience_level</code></td>
+            <td>Phase 5 experience level filter (junior / mid / senior)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 4 — CACHE MODEL
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-cache-model" class="panel">
+    <p class="section-heading">Redis caching strategy — key patterns, TTLs, and invalidation</p>
+
+    <div class="rl-wrap">
+      <h3>Cache Key Reference — all company endpoints</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Cache Key Pattern</th>
+            <th>TTL Constant</th>
+            <th>TTL Value</th>
+            <th>Invalidated By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GET /profile</td>
+            <td><code>prohire:company:profile:{userId}</code></td>
+            <td><code>TTL.COMPANY_PROFILE</code></td>
+            <td>300s (5 min)</td>
+            <td>PUT /profile</td>
+          </tr>
+          <tr>
+            <td>GET /jobs</td>
+            <td><code>prohire:company:jobs:{companyId}</code></td>
+            <td><code>TTL.COMPANY_JOBS</code></td>
+            <td>300s (5 min)</td>
+            <td>POST /jobs · PUT /jobs/:id · DELETE /jobs/:id</td>
+          </tr>
+          <tr>
+            <td>GET /jobs/:id</td>
+            <td><code>prohire:job:{jobId}</code></td>
+            <td><code>TTL.JOB_DETAIL</code></td>
+            <td>600s (10 min)</td>
+            <td>PUT /jobs/:id · DELETE /jobs/:id</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col" style="margin-top:1.5rem;">
+      <div class="diagram-card">
+        <h3>Cache-Aside Read Pattern — getOrSet()</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A [label="getOrSet(key, ttl, fetchFn)" shape=box style="filled,rounded"]
+  B [label="redis.get(key)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  C [label="cached value?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  D [label="JSON.parse(cached)\nreturn data" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  E [label="fetchFn()\nDB query via repository" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  F [label="redis.setex(key, ttl, JSON.stringify(data))" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  G [label="return data" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D [label="hit"]
+  C -> E [label="miss"]
+  E -> F
+  F -> G
+}
+        </pre>
+      </div>
+
+      <div class="diagram-card">
+        <h3>Write-Through Invalidation — invalidate()</h3>
+        <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  A [label="mutation succeeds\n(createJob / updateJob / deleteJob)" shape=box style="filled,rounded"]
+  B [label="invalidate(keyPattern)" shape=box style="filled,rounded"]
+  C [label="redis.keys(keyPattern)\n(supports glob: prohire:company:jobs:*)" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  D [label="keys.length > 0?" shape=diamond style=filled fillcolor="#713f12" color="#eab308" fontcolor="#fde68a"]
+  E [label="redis.del(...keys)\nAll matching keys removed" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  F [label="no-op\n(nothing to evict)" style=filled fillcolor="#1c2333" color="#30363d"]
+  G [label="next GET will repopulate from DB" style=filled fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+
+  A -> B
+  B -> C
+  C -> D
+  D -> E [label="yes"]
+  D -> F [label="no"]
+  E -> G
+  F -> G
+}
+        </pre>
+      </div>
+    </div>
+
+    <aside class="info">
+      <strong>All Keys Prefixed with <code>prohire:</code></strong>
+      Every Redis key in the application starts with <code>prohire:</code>. This namespaces the
+      application's keys from any other tenants sharing the Redis instance and makes it safe to
+      use glob patterns (<code>redis.keys('prohire:company:jobs:*')</code>) during invalidation
+      without risk of collateral damage.
+    </aside>
+
+    <aside class="warn">
+      <strong>TTLs as Named Constants — Never Hardcoded</strong>
+      All TTL values are defined in <code>src/core/redis/ttl.constants.ts</code> as a typed
+      <code>const</code> object. No magic numbers appear inline in service methods. Changing a
+      TTL in one place propagates to every <code>getOrSet</code> call that uses that constant.
+    </aside>
+
+    <aside class="confirm">
+      <strong>Cache-Aside vs Write-Through</strong>
+      ProHire uses cache-aside for reads (<code>getOrSet</code>) and invalidation for writes
+      (not cache-update). On a mutation the stale key is deleted; the next read repopulates it.
+      This avoids the complexity of serialising a write into the exact cache format and is safe
+      even if two writes race — only one DB row is authoritative.
+    </aside>
+
+    <aside class="danger">
+      <strong>redis.keys() Warning — Not for High-Cardinality Patterns</strong>
+      <code>invalidate()</code> uses <code>redis.keys(pattern)</code> which is O(N) and blocks the
+      Redis event loop. It is acceptable here because key counts are small (one key per user/job).
+      In a high-cardinality scenario (thousands of keys), replace with Redis SCAN or a separate
+      key-tracking index. This is noted as a Phase 10 hardening task.
+    </aside>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 5 — CONCEPTS
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-concepts" class="panel">
+    <p class="section-heading">Middleware chain · DTO decisions · resolveCompany pattern</p>
+
+    <!-- ── Section 1: Middleware chain ── -->
+    <p class="section-heading">Section 1 — Middleware chain: what each stop does and does not do</p>
+
+    <div class="rl-wrap">
+      <h3>Company route middleware chain — full breakdown</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Stop</th>
+            <th>What it does</th>
+            <th>What it does NOT do</th>
+            <th>On failure</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Express Router</td>
+            <td>Matches HTTP method + path. Selects the middleware array for that route.</td>
+            <td>Runs no middleware itself — it only dispatches.</td>
+            <td>404 before any middleware if no route matches.</td>
+          </tr>
+          <tr>
+            <td>authenticate()</td>
+            <td>Reads <code>Authorization: Bearer &lt;token&gt;</code> header. Verifies JWT signature and expiry. Attaches <code>{ userId, email, role }</code> to <code>req.user</code>.</td>
+            <td>Does not check the user's role — only proves identity.</td>
+            <td>Calls <code>next(new AppError(401))</code> → jumps to global error handler.</td>
+          </tr>
+          <tr>
+            <td>authorize("company")</td>
+            <td>Reads <code>req.user.role</code> (set by authenticate). Checks that it is in the allowed roles array.</td>
+            <td>Does not verify the JWT itself — assumes authenticate ran first.</td>
+            <td>Calls <code>next(new ForbiddenError())</code> → 403 FORBIDDEN.</td>
+          </tr>
+          <tr>
+            <td>validate(Dto)</td>
+            <td><code>schema.safeParse(req.body)</code>. On success, <strong>replaces <code>req.body</code></strong> with the parsed, type-safe DTO object, then calls <code>next()</code>. Only present on POST/PUT routes.</td>
+            <td>Does not call <code>next(err)</code> on failure — it sends the response directly.</td>
+            <td>Sends <code>422 VALIDATION_ERROR</code> with field-level error array. Chain stops here.</td>
+          </tr>
+          <tr>
+            <td>asyncHandler()</td>
+            <td>Wraps the controller function: <code>Promise.resolve(fn(req,res,next)).catch(next)</code>. Any <code>throw</code> inside the controller or service/repo it calls is caught and forwarded.</td>
+            <td>Does not execute any logic itself — it is only an error boundary.</td>
+            <td>Forwards thrown error to global error handler via <code>next(err)</code>.</td>
+          </tr>
+          <tr>
+            <td>Controller fn</td>
+            <td>Casts <code>req.body</code> to DTO type. Reads <code>req.params</code> and <code>req.user</code>. Calls one service method. Writes JSON response and status code.</td>
+            <td>No business decisions. No SQL. No direct DB or Redis access.</td>
+            <td>Throws a typed <code>AppError</code> subclass from the service — propagates up through asyncHandler.</td>
+          </tr>
+          <tr>
+            <td>Service</td>
+            <td>All business logic: ownership resolution, cache reads/writes, invalidation decisions.</td>
+            <td>No <code>req</code>/<code>res</code> access. No direct SQL. Never imports <code>db</code> directly.</td>
+            <td>Throws typed <code>AppError</code> subclasses (<code>ConflictError</code>, <code>NotFoundError</code>).</td>
+          </tr>
+          <tr>
+            <td>Repository</td>
+            <td>All parameterised SQL. Returns typed row objects. Ownership is enforced in SQL WHERE clauses.</td>
+            <td>No business decisions. Does not call other repositories.</td>
+            <td>Let DB errors propagate — service or global handler catches them.</td>
+          </tr>
+          <tr>
+            <td>Global Error Handler</td>
+            <td>The 4-argument <code>(err, req, res, next)</code> middleware registered last in <code>app.ts</code>. <code>AppError</code> subclasses → formatted JSON. Unknown errors → 500.</td>
+            <td>Never exposes stack traces in production.</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="info" style="margin-top:1.5rem;">
+      <strong>Why authenticate and authorize are two separate middlewares</strong>
+      Separation of concerns: <code>authenticate</code> answers "who are you?" (identity),
+      <code>authorize</code> answers "are you allowed?" (permission). Keeping them separate means
+      you can apply <code>authenticate</code> to a route without restricting its role,
+      and you can apply <code>authorize</code> with different role sets on different routes
+      (<code>authorize("admin")</code>, <code>authorize("company", "admin")</code>, etc.) without
+      duplicating identity verification logic.
+    </aside>
+
+
+    <!-- ── Section 2: DTO decisions ── -->
+    <p class="section-heading" style="margin-top:2.5rem;">Section 2 — DTOs: when to create one and why</p>
+
+    <div class="rl-wrap">
+      <h3>DTO decision table — all company endpoints</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Input source</th>
+            <th>DTO?</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>POST /profile</td>
+            <td><code>req.body</code> — name, description?, website?, logo_url?</td>
+            <td>✓ <code>UpsertCompanyProfileDto</code></td>
+            <td>Body needs Zod validation (string constraints, URL format)</td>
+          </tr>
+          <tr>
+            <td>GET /profile</td>
+            <td>none — userId from <code>req.user</code></td>
+            <td>✗ — no body, no validate() middleware</td>
+            <td>User identity already validated by JWT. No request body to parse.</td>
+          </tr>
+          <tr>
+            <td>PUT /profile</td>
+            <td><code>req.body</code> — same fields as POST</td>
+            <td>✓ <code>UpsertCompanyProfileDto</code></td>
+            <td>Same Zod schema reused for create and update — both require the same validation.</td>
+          </tr>
+          <tr>
+            <td>POST /jobs</td>
+            <td><code>req.body</code> — title, description, job_type, experience_level, etc.</td>
+            <td>✓ <code>CreateJobDto</code></td>
+            <td>Body needs Zod validation including cross-field <code>.refine()</code> for salary range.</td>
+          </tr>
+          <tr>
+            <td>GET /jobs</td>
+            <td>none — companyId resolved internally from userId</td>
+            <td>✗ — no body</td>
+            <td>No request body to validate.</td>
+          </tr>
+          <tr>
+            <td>GET /jobs/:id</td>
+            <td><code>req.params.id</code> — single route param</td>
+            <td>✗ — read directly as string</td>
+            <td>Route params are read as <code>req.params['id']</code>. No body, no validate() needed.</td>
+          </tr>
+          <tr>
+            <td>PUT /jobs/:id</td>
+            <td><code>req.body</code> — all fields optional (partial update)</td>
+            <td>✓ <code>UpdateJobDto</code></td>
+            <td>All fields optional but still need type/enum validation + salary cross-field <code>.refine()</code>.</td>
+          </tr>
+          <tr>
+            <td>DELETE /jobs/:id</td>
+            <td><code>req.params.id</code> — single route param</td>
+            <td>✗ — read directly as string</td>
+            <td>Route param only. No body to validate. Soft-delete has no configurable input.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="confirm" style="margin-top:1rem;">
+      <strong>UpsertCompanyProfileDto — Shared Schema for Create and Update</strong>
+      Both <code>POST /profile</code> and <code>PUT /profile</code> accept the same body shape and
+      use the same Zod schema. The "upsert" naming reflects this — the schema is not directional.
+      This avoids maintaining two nearly-identical schemas. If the profile shape ever diverges between
+      create and update, split them then.
+    </aside>
+
+    <aside class="warn" style="margin-top:0.75rem;">
+      <strong>CreateJobDto vs UpdateJobDto — Why Two Schemas?</strong>
+      <code>CreateJobDto</code> makes <code>title</code>, <code>description</code>, <code>job_type</code>,
+      and <code>experience_level</code> required. <code>UpdateJobDto</code> makes every field optional to
+      support partial updates via SQL <code>COALESCE</code>. Merging them into one schema with
+      conditional required fields would require a Zod discriminated union — more complexity for no gain.
+    </aside>
+
+
+    <!-- ── Section 3: resolveCompany pattern ── -->
+    <p class="section-heading" style="margin-top:2.5rem;">Section 3 — The resolveCompany helper: ownership without repetition</p>
+
+    <div class="rl-wrap">
+      <h3>resolveCompany — what it is and why it exists</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>What does it do?</td>
+            <td>Calls <code>companyRepository.findCompanyByOwnerId(userId)</code>. Returns the <code>CompanyRow</code> (including <code>company.id</code>). Throws <code>NotFoundError</code> if no company profile exists for this user.</td>
+          </tr>
+          <tr>
+            <td>Why not inline the check in each job method?</td>
+            <td>All 5 job methods (createJob, listJobs, getJob, updateJob, deleteJob) need <code>company.id</code> and must fail with 404 if the profile doesn't exist. Inlining duplicates 3 lines × 5 methods = 15 lines of identical logic. A private helper reduces that to one definition.</td>
+          </tr>
+          <tr>
+            <td>Why is it <code>private</code>?</td>
+            <td>It is an internal implementation detail of <code>CompanyService</code>. No controller or other service should call it directly — they call the public job methods which call it internally.</td>
+          </tr>
+          <tr>
+            <td>Does it hit the DB every time?</td>
+            <td>Yes — <code>resolveCompany</code> is not cached. It is a safety/ownership check that must reflect the latest DB state. Caching it would allow a revoked company profile to still pass the check during the cache TTL window.</td>
+          </tr>
+          <tr>
+            <td>What does it enable?</td>
+            <td>All job repository queries are keyed by <code>company.id</code>, not <code>userId</code>. <code>resolveCompany</code> bridges the authenticated user's ID to the company's internal ID in one place.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="info" style="margin-top:1rem;">
+      <strong>Pattern: private helper as ownership gate</strong>
+      This pattern scales naturally. If a future method needs to verify company ownership before
+      a different kind of operation (e.g. analytics, file upload), it calls <code>resolveCompany</code>
+      first. The ownership check and the ID-translation always happen together, in one place,
+      with one error thrown on failure.
+    </aside>
+
+    <div class="rl-wrap" style="margin-top:1.5rem;">
+      <h3>Layer-by-layer type ownership — company module</h3>
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>What it defines</th>
+            <th>Used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>company.dto.ts</code></td>
+            <td>Zod schemas + <code>z.infer&lt;&gt;</code> input types:<br><code>UpsertCompanyProfileInput</code>, <code>CreateJobInput</code>, <code>UpdateJobInput</code></td>
+            <td>Controller casts (<code>req.body as CreateJobInput</code>) and service method parameter types</td>
+          </tr>
+          <tr>
+            <td><code>company.types.ts</code></td>
+            <td>DB row interfaces: <code>CompanyRow</code>, <code>JobRow</code> — snake_case, maps 1-to-1 to column names</td>
+            <td>Repository generics: <code>db.query&lt;CompanyRow&gt;(...)</code>. Service return type annotations.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="confirm" style="margin-top:1rem;">
+      <strong>General rule for adding types</strong>
+      If a thing comes from the DB → it needs a Row type in <code>*.types.ts</code>.
+      If a thing comes from the HTTP body → it needs a Zod DTO in <code>*.dto.ts</code>.
+      If a service method returns a shape only it uses → annotate the return type inline, no extra interface.
+    </aside>
+  </section>
+
+</main>
+
+<script>
+  // ─── Tab Switching (runs immediately, no viz dependency) ────
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const panels  = document.querySelectorAll('.panel');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const activePanel = document.getElementById('panel-' + target);
+      if (activePanel) {
+        activePanel.classList.add('active');
+        renderPanel('panel-' + target);
+        if (target === 'endpoints') {
+          const activeEp = activePanel.querySelector('.ep-panel.active');
+          if (activeEp) renderPanel(activeEp.id);
+        }
+      }
+    });
+  });
+
+  // ─── Endpoint Sub-tab Switching ─────────────────────────────
+  const epBtns   = document.querySelectorAll('.ep-btn');
+  const epPanels = document.querySelectorAll('.ep-panel');
+
+  epBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.ep;
+      epBtns.forEach(b => b.classList.remove('active'));
+      epPanels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const epPanel = document.getElementById('ep-' + target);
+      if (epPanel) {
+        epPanel.classList.add('active');
+        renderPanel('ep-' + target);
+      }
+    });
+  });
+
+  // ─── Viz.js Rendering ───────────────────────────────────────
+  const renderedPanels = new Set();
+  const viz = new Viz();
+
+  function renderPanel(panelId) {
+    if (renderedPanels.has(panelId)) return;
+    renderedPanels.add(panelId);
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.querySelectorAll('pre.graphviz').forEach(pre => {
+      const dot = pre.textContent;
+      viz.renderSVGElement(dot)
+        .then(svg => {
+          svg.setAttribute('class', 'viz-svg');
+          pre.replaceWith(svg);
+        })
+        .catch(e => {
+          pre.textContent = 'Diagram error: ' + e.message;
+          pre.style.color = '#ef4444';
+        });
+    });
+  }
+
+  // Render initially-visible panels
+  renderPanel('panel-architecture');
+  renderPanel('ep-create-profile');
+</script>
+
+</body>
+</html>

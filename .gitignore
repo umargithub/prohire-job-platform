@@ -20,5 +20,10 @@ logs/
 # Docker
 docker-compose.override.yml
 
+# Dependencies
+node_modules/
+package-lock.json
+/package.json
+
 # Claude AI memory (local only)
 .claude/

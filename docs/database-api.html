@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProHire — Database Design &amp; API Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --bg-card:   #161b22;
+      --bg-hover:  #1c2333;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #3b82f6;
+      --error:     #ef4444;
+      --success:   #22c55e;
+      --warn:      #eab308;
+      --purple:    #a855f7;
+      --teal:      #14b8a6;
+      --mono:      'JetBrains Mono', 'Fira Code', monospace;
+      --prose:     system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--prose);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ─── Header ─── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+    .header-top { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
+    header h1 { font-family: var(--mono); font-size: 0.95rem; }
+    header h1 .dim { color: var(--muted); }
+    header h1 .hi  { color: var(--accent); }
+    .badge {
+      font-family: var(--mono); font-size: 0.7rem;
+      padding: 0.2rem 0.5rem; border-radius: 999px;
+      background: #0d2040; border: 1px solid var(--accent); color: #93c5fd;
+    }
+
+    /* ─── Main Tabs ─── */
+    .main-tabs { display: flex; gap: 0; }
+    .tab-btn {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--muted); cursor: pointer; font-family: var(--prose);
+      font-size: 0.875rem; padding: 0.5rem 1.25rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ─── Main Layout ─── */
+    main { padding: 2rem; max-width: 1500px; margin: 0 auto; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ─── Section heading ─── */
+    .section-heading {
+      font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.12em;
+      margin-bottom: 1.25rem; padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ─── Diagram Card ─── */
+    .diagram-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; overflow-x: auto;
+    }
+    .diagram-card h3 {
+      font-family: var(--mono); font-size: 0.78rem;
+      color: var(--muted); margin-bottom: 1.25rem;
+    }
+    .viz-svg { display: block; }
+    .viz-svg text { font-family: Helvetica, sans-serif; }
+
+    /* ─── Grids ─── */
+    .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; }
+    @media (max-width: 1100px) { .three-col { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 900px)  { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+    /* ─── ERD Table Cards ─── */
+    .erd-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .erd-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 1rem; border-bottom: 1px solid var(--border);
+      background: #0d1117;
+    }
+    .erd-card-header .tbl-name {
+      font-family: var(--mono); font-size: 0.88rem; font-weight: 600;
+      color: var(--accent);
+    }
+    .erd-card-header .tbl-migration {
+      font-family: var(--mono); font-size: 0.65rem; color: var(--muted);
+    }
+    .erd-card table { width: 100%; border-collapse: collapse; }
+    .erd-card td {
+      padding: 0.3rem 1rem; font-family: var(--mono); font-size: 0.78rem;
+      border-bottom: 1px solid rgba(48,54,61,0.5); vertical-align: middle;
+    }
+    .erd-card tr:last-child td { border-bottom: none; }
+    .erd-card tr:hover td { background: var(--bg-hover); }
+    .col-name { color: var(--text); min-width: 130px; }
+    .col-type { color: var(--muted); min-width: 130px; }
+    .col-constraint { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+    .tag {
+      font-size: 0.62rem; font-weight: 700; padding: 0.1rem 0.35rem;
+      border-radius: 3px; white-space: nowrap;
+    }
+    .tag.pk { background: #0d2040; color: #93c5fd; border: 1px solid #3b82f6; }
+    .tag.fk { background: #1a0f2e; color: #d8b4fe; border: 1px solid #a855f7; }
+    .tag.uk { background: #0a2010; color: #86efac; border: 1px solid #22c55e; }
+    .tag.nn { background: #171208; color: #fde68a; border: 1px solid #eab308; }
+    .tag.df { background: #0c1a1a; color: #99f6e4; border: 1px solid #14b8a6; }
+    .tag.ck { background: #2a0a0a; color: #fca5a5; border: 1px solid #ef4444; }
+
+    /* ─── Callout Boxes ─── */
+    aside {
+      border-left: 3px solid; padding: 0.7rem 1rem; margin: 1rem 0;
+      border-radius: 0 6px 6px 0; font-size: 0.83rem; line-height: 1.65;
+    }
+    aside.info    { border-color: var(--accent);  background: #0a1628; }
+    aside.warn    { border-color: var(--warn);    background: #171208; }
+    aside.confirm { border-color: var(--success); background: #071410; }
+    aside.danger  { border-color: var(--error);   background: #140808; }
+    aside strong {
+      display: block; font-family: var(--mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.35rem;
+    }
+    aside.info    strong { color: var(--accent); }
+    aside.warn    strong { color: var(--warn); }
+    aside.confirm strong { color: var(--success); }
+    aside.danger  strong { color: var(--error); }
+
+    code {
+      font-family: var(--mono); font-size: 0.85em;
+      background: #1e2535; padding: 0.1em 0.35em; border-radius: 3px; color: #c9d1d9;
+    }
+
+    /* ─── Reference Table Wrapper ─── */
+    .ref-wrap {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem;
+    }
+    .ref-wrap h3 {
+      font-family: var(--mono); font-size: 0.78rem; color: var(--muted);
+      padding: 1rem 1.25rem 0.75rem; border-bottom: 1px solid var(--border);
+    }
+    .ref-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .ref-table th {
+      text-align: left; padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--border);
+      color: var(--muted); font-family: var(--mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;
+    }
+    .ref-table td {
+      padding: 0.6rem 1.25rem; border-bottom: 1px solid #161b22;
+      font-family: var(--mono); font-size: 0.78rem; vertical-align: top;
+    }
+    .ref-table tr:last-child td { border-bottom: none; }
+    .ref-table tr:hover td { background: var(--bg-hover); }
+    .ref-table td:first-child { color: #93c5fd; }
+
+    /* ─── API sub-tabs ─── */
+    .ep-nav {
+      display: flex; flex-wrap: wrap; gap: 0;
+      border-bottom: 1px solid var(--border); margin-bottom: 1.5rem;
+    }
+    .ep-btn {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--muted); cursor: pointer; font-family: var(--mono);
+      font-size: 0.72rem; padding: 0.4rem 0.85rem;
+      transition: color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .ep-btn:hover  { color: var(--text); }
+    .ep-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .ep-panel      { display: none; }
+    .ep-panel.active { display: block; }
+
+    /* ─── Method + Route Badges ─── */
+    .route-badge {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 0.6rem; margin-bottom: 1rem;
+    }
+    .method {
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+      padding: 0.18rem 0.55rem; border-radius: 4px;
+    }
+    .method.get    { background: #134e4a; color: #5eead4; }
+    .method.post   { background: #1e3a5f; color: #93c5fd; }
+    .method.put    { background: #431407; color: #fdba74; }
+    .method.patch  { background: #3b0764; color: #d8b4fe; }
+    .method.delete { background: #450a0a; color: #fca5a5; }
+    .route-path    { font-family: var(--mono); font-size: 0.875rem; color: var(--text); }
+    .status-badges { display: flex; gap: 0.3rem; margin-left: auto; flex-wrap: wrap; }
+    .status        { font-family: var(--mono); font-size: 0.68rem; padding: 0.15rem 0.4rem; border-radius: 4px; }
+    .s2xx { background: #14532d; color: #86efac; }
+    .s4xx { background: #7f1d1d; color: #fca5a5; }
+
+    /* ─── Middleware strip ─── */
+    .middleware-strip {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+      margin-bottom: 1.25rem; padding: 0.75rem 1rem;
+      background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+    }
+    .mw-label { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-right: 0.25rem; }
+    .pill {
+      font-family: var(--mono); font-size: 0.7rem; padding: 0.2rem 0.65rem;
+      border-radius: 999px; border: 1px solid; white-space: nowrap;
+    }
+    .pill.on  { background: #0d2040; border-color: var(--accent); color: #93c5fd; }
+    .pill.off { background: transparent; border-color: #2a2a2a; color: #3a3a3a; text-decoration: line-through; }
+    .pill.rl  { background: #1a0f00; border-color: var(--warn); color: #fde68a; }
+    .pill-arrow { color: var(--muted); font-size: 0.75rem; }
+
+    /* ─── Body/Response schema blocks ─── */
+    .schema-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+    @media (max-width: 900px) { .schema-grid { grid-template-columns: 1fr; } }
+    .schema-block {
+      background: #0d1117; border: 1px solid var(--border);
+      border-radius: 6px; overflow: hidden;
+    }
+    .schema-block-header {
+      font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.1em; padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--border); color: var(--muted);
+    }
+    .schema-block-header.req { color: #93c5fd; border-bottom-color: #1e3a5f; background: #0a1628; }
+    .schema-block-header.res { color: #86efac; border-bottom-color: #14532d; background: #071410; }
+    .schema-block-header.err { color: #fca5a5; border-bottom-color: #7f1d1d; background: #140808; }
+    .schema-block pre {
+      font-family: var(--mono); font-size: 0.78rem; padding: 0.85rem 1rem;
+      color: #c9d1d9; line-height: 1.7; overflow-x: auto; white-space: pre;
+    }
+    .schema-block pre .k  { color: #93c5fd; }
+    .schema-block pre .v  { color: #86efac; }
+    .schema-block pre .s  { color: #fde68a; }
+    .schema-block pre .m  { color: #d8b4fe; }
+    .schema-block pre .cm { color: #8b949e; font-style: italic; }
+
+    /* ─── API Overview table colors ─── */
+    .module-health { color: #99f6e4; }
+    .module-auth   { color: #d8b4fe; }
+    .module-company { color: #93c5fd; }
+
+    /* ─── Index tag ─── */
+    .idx-tag {
+      display: inline-block; font-family: var(--mono); font-size: 0.65rem;
+      background: #0c1a1a; color: #99f6e4; border: 1px solid #14b8a6;
+      padding: 0.1rem 0.35rem; border-radius: 3px; margin: 0.1rem;
+    }
+
+    /* ─── Print ─── */
+    @media print {
+      header { position: static; }
+      .main-tabs, .ep-nav { display: none !important; }
+      .panel, .ep-panel { display: block !important; }
+      body { background: #fff; color: #111; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1><span class="dim">ProHire /</span> <span class="hi">Database Design</span> <span class="dim">&amp; API Reference</span></h1>
+    <span class="badge">Full Schema</span>
+    <span class="badge" style="border-color:#a855f7;background:#1a0f2e;color:#d8b4fe;">18 Endpoints</span>
+  </div>
+  <nav class="main-tabs">
+    <button class="tab-btn active" data-tab="erd">Database ERD</button>
+    <button class="tab-btn" data-tab="schema">Schema Reference</button>
+    <button class="tab-btn" data-tab="api-overview">API Overview</button>
+    <button class="tab-btn" data-tab="api-detail">Endpoint Detail</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 1 — DATABASE ERD
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-erd" class="panel active">
+    <p class="section-heading">7 tables · 5 migrations · all relationships and cascade rules</p>
+
+    <div class="diagram-card">
+      <h3>Full Entity Relationship Diagram — all tables and foreign key chains</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  fontname="Helvetica"
+  fontcolor="#e6edf3"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=record]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  users [label="{users|id UUID PK\lemail TEXT UK NOT NULL\lpassword_hash TEXT NOT NULL\lrole TEXT CHECK NOT NULL\lis_verified BOOL DEFAULT FALSE\lcreated_at TIMESTAMPTZ\lupdated_at TIMESTAMPTZ\l}" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  companies [label="{companies|id UUID PK\lowner_id UUID FK UK NOT NULL\lname TEXT NOT NULL\ldescription TEXT\lwebsite TEXT\llogo_url TEXT\lcreated_at TIMESTAMPTZ\lupdated_at TIMESTAMPTZ\l}" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  jobs [label="{jobs|id UUID PK\lcompany_id UUID FK NOT NULL\ltitle TEXT NOT NULL\ldescription TEXT NOT NULL\llocation TEXT\ljob_type TEXT CHECK NOT NULL\lexperience_level TEXT CHECK NOT NULL\lsalary_min NUMERIC(12,2)\lsalary_max NUMERIC(12,2)\lis_active BOOL DEFAULT TRUE\lcreated_at TIMESTAMPTZ\lupdated_at TIMESTAMPTZ\l}" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  applications [label="{applications|id UUID PK\ljob_id UUID FK NOT NULL\lcandidate_id UUID FK NOT NULL\lcover_letter TEXT\lstage TEXT CHECK DEFAULT applied\lversion INT DEFAULT 1\lcreated_at TIMESTAMPTZ\lupdated_at TIMESTAMPTZ\l}" fillcolor="#0d2040" color="#3b82f6" fontcolor="#93c5fd"]
+
+  refresh_tokens [label="{refresh_tokens|id UUID PK\luser_id UUID FK NOT NULL\ltoken_hash TEXT UK NOT NULL\lexpires_at TIMESTAMPTZ NOT NULL\lcreated_at TIMESTAMPTZ\l}" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+
+  verification_tokens [label="{verification_tokens|id UUID PK\luser_id UUID FK NOT NULL\ltoken_hash TEXT UK NOT NULL\lexpires_at TIMESTAMPTZ NOT NULL\lcreated_at TIMESTAMPTZ\l}" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+
+  password_reset_tokens [label="{password_reset_tokens|id UUID PK\luser_id UUID FK NOT NULL\ltoken_hash TEXT UK NOT NULL\lexpires_at TIMESTAMPTZ NOT NULL\lcreated_at TIMESTAMPTZ\l}" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+
+  users -> companies            [label="1 : 1\nON DELETE CASCADE" color="#22c55e" fontcolor="#22c55e"]
+  companies -> jobs             [label="1 : N\nON DELETE CASCADE" color="#3b82f6" fontcolor="#3b82f6"]
+  jobs -> applications          [label="1 : N\nON DELETE CASCADE" color="#3b82f6" fontcolor="#3b82f6"]
+  users -> applications         [label="1 : N (candidate)\nON DELETE CASCADE" color="#22c55e" fontcolor="#22c55e"]
+  users -> refresh_tokens       [label="1 : N\nON DELETE CASCADE" color="#a855f7" fontcolor="#a855f7"]
+  users -> verification_tokens  [label="1 : N\nON DELETE CASCADE" color="#a855f7" fontcolor="#a855f7"]
+  users -> password_reset_tokens [label="1 : N\nON DELETE CASCADE" color="#a855f7" fontcolor="#a855f7"]
+}
+      </pre>
+    </div>
+
+    <div class="diagram-card">
+      <h3>Cascade Chain — what happens when a user or company is deleted</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=TB
+  bgcolor="#161b22"
+  fontname="Helvetica"
+  node [fontname="Helvetica" fontsize=11 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=10 fontcolor="#8b949e"]
+
+  subgraph cluster_user_delete {
+    label="DELETE FROM users WHERE id = ?" bgcolor="#0f1117" color="#ef4444" fontcolor="#fca5a5" fontsize=12
+    U  [label="users row deleted" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+    C  [label="companies row → CASCADE DELETE" fillcolor="#431407" color="#ef4444" fontcolor="#fca5a5"]
+    J  [label="all jobs for that company → CASCADE DELETE" fillcolor="#431407" color="#ef4444" fontcolor="#fca5a5"]
+    A  [label="all applications for those jobs → CASCADE DELETE" fillcolor="#431407" color="#ef4444" fontcolor="#fca5a5"]
+    A2 [label="all candidate's own applications → CASCADE DELETE" fillcolor="#431407" color="#ef4444" fontcolor="#fca5a5"]
+    RT [label="all refresh_tokens → CASCADE DELETE" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+    VT [label="all verification_tokens → CASCADE DELETE" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+    PT [label="all password_reset_tokens → CASCADE DELETE" fillcolor="#1a0f2e" color="#a855f7" fontcolor="#d8b4fe"]
+    U -> C  [label="owner_id CASCADE"]
+    C -> J  [label="company_id CASCADE"]
+    J -> A  [label="job_id CASCADE"]
+    U -> A2 [label="candidate_id CASCADE"]
+    U -> RT [label="user_id CASCADE"]
+    U -> VT [label="user_id CASCADE"]
+    U -> PT [label="user_id CASCADE"]
+  }
+}
+      </pre>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <aside class="info">
+          <strong>Why all PKs are UUID, not SERIAL</strong>
+          UUID primary keys prevent row-count enumeration (an attacker cannot guess that
+          <code>id=1001</code> exists by incrementing from a known ID). They also allow
+          safe distributed ID generation without a centralised sequence — important if the
+          app ever shards or generates IDs client-side. PostgreSQL generates them with
+          <code>gen_random_uuid()</code> (cryptographically random, no collision risk at scale).
+        </aside>
+
+        <aside class="confirm">
+          <strong>ON DELETE CASCADE everywhere</strong>
+          Every foreign key uses <code>ON DELETE CASCADE</code>. Deleting a user automatically
+          removes their company, all jobs, all applications, and all tokens. No application code
+          has to orchestrate multi-table deletes. PostgreSQL's constraint system guarantees referential
+          integrity even if a bug skips the service layer.
+        </aside>
+      </div>
+
+      <div>
+        <aside class="warn">
+          <strong>users → applications — two FK paths</strong>
+          The <code>applications</code> table has two foreign keys into <code>users</code>: one
+          through <code>jobs → companies → users</code> (the company owner) and one directly via
+          <code>candidate_id</code>. This means deleting a user cascades both as a company owner
+          (removing all their job listings and applications to those jobs) <em>and</em> as a candidate
+          (removing all their own application records).
+        </aside>
+
+        <aside class="danger">
+          <strong>applications.version — Optimistic Locking Column</strong>
+          The <code>version INTEGER NOT NULL DEFAULT 1</code> column on <code>applications</code>
+          is reserved for Phase 7 (optimistic locking for stage transitions). When a company updates
+          an application's stage, the UPDATE includes <code>WHERE version = $expected</code> and
+          increments version on success. A missed update (0 rows affected) signals a concurrent write.
+        </aside>
+      </div>
+    </div>
+
+    <div class="ref-wrap" style="margin-top:0.5rem;">
+      <h3>Foreign Key — Relationship Summary</h3>
+      <table class="ref-table">
+        <thead>
+          <tr>
+            <th>Child Table</th>
+            <th>Column</th>
+            <th>References</th>
+            <th>Cardinality</th>
+            <th>On Delete</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>companies</td><td><code>owner_id</code></td><td>users(id)</td><td>1 : 1</td><td>CASCADE</td><td>One company per user account</td></tr>
+          <tr><td>jobs</td><td><code>company_id</code></td><td>companies(id)</td><td>1 : N</td><td>CASCADE</td><td>Many jobs per company</td></tr>
+          <tr><td>applications</td><td><code>job_id</code></td><td>jobs(id)</td><td>1 : N</td><td>CASCADE</td><td>Many applications per job</td></tr>
+          <tr><td>applications</td><td><code>candidate_id</code></td><td>users(id)</td><td>1 : N</td><td>CASCADE</td><td>Many applications per candidate user</td></tr>
+          <tr><td>refresh_tokens</td><td><code>user_id</code></td><td>users(id)</td><td>1 : N</td><td>CASCADE</td><td>Multiple sessions per user</td></tr>
+          <tr><td>verification_tokens</td><td><code>user_id</code></td><td>users(id)</td><td>1 : N</td><td>CASCADE</td><td>Resendable verification emails</td></tr>
+          <tr><td>password_reset_tokens</td><td><code>user_id</code></td><td>users(id)</td><td>1 : N</td><td>CASCADE</td><td>One active reset token at a time (service-managed)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 2 — SCHEMA REFERENCE
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-schema" class="panel">
+    <p class="section-heading">All 7 tables — columns, types, constraints, indexes, design decisions</p>
+
+    <div class="three-col">
+
+      <!-- users -->
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name">users</span>
+          <span class="tbl-migration">001_create_users.sql</span>
+        </div>
+        <table>
+          <tr>
+            <td class="col-constraint"><span class="tag pk">PK</span></td>
+            <td class="col-name">id</td>
+            <td class="col-type">UUID</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag uk">UK</span></td>
+            <td class="col-name">email</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span></td>
+            <td class="col-name">password_hash</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag ck">CK</span></td>
+            <td class="col-name">role</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">is_verified</td>
+            <td class="col-type">BOOLEAN</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">created_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">updated_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_users_email</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">CHECK role IN ('candidate','company','admin')</div>
+        </div>
+      </div>
+
+      <!-- companies -->
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name">companies</span>
+          <span class="tbl-migration">002_create_companies.sql</span>
+        </div>
+        <table>
+          <tr>
+            <td class="col-constraint"><span class="tag pk">PK</span></td>
+            <td class="col-name">id</td>
+            <td class="col-type">UUID</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag fk">FK</span><span class="tag uk">UK</span><span class="tag nn">NN</span></td>
+            <td class="col-name">owner_id</td>
+            <td class="col-type">UUID → users</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span></td>
+            <td class="col-name">name</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">description</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">website</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">logo_url</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">created_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">updated_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <div style="font-family:var(--mono);font-size:0.7rem;color:var(--muted)">owner_id UNIQUE — one company per user</div>
+        </div>
+      </div>
+
+      <!-- jobs -->
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name">jobs</span>
+          <span class="tbl-migration">003_create_jobs.sql</span>
+        </div>
+        <table>
+          <tr>
+            <td class="col-constraint"><span class="tag pk">PK</span></td>
+            <td class="col-name">id</td>
+            <td class="col-type">UUID</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span></td>
+            <td class="col-name">company_id</td>
+            <td class="col-type">UUID → companies</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span></td>
+            <td class="col-name">title</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span></td>
+            <td class="col-name">description</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">location</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag ck">CK</span></td>
+            <td class="col-name">job_type</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag ck">CK</span></td>
+            <td class="col-name">experience_level</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">salary_min</td>
+            <td class="col-type">NUMERIC(12,2)</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag ck">CK</span></td>
+            <td class="col-name">salary_max</td>
+            <td class="col-type">NUMERIC(12,2)</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">is_active</td>
+            <td class="col-type">BOOLEAN</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">created_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">updated_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_jobs_company_id</span>
+          <span class="idx-tag">idx_jobs_is_active</span>
+          <span class="idx-tag">idx_jobs_job_type</span>
+          <span class="idx-tag">idx_jobs_experience_level</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">
+            CHECK job_type IN ('remote','hybrid','onsite')<br>
+            CHECK experience_level IN ('junior','mid','senior')<br>
+            CHECK salary_max &gt;= salary_min (if both set)
+          </div>
+        </div>
+      </div>
+
+      <!-- applications -->
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name">applications</span>
+          <span class="tbl-migration">004_create_applications.sql</span>
+        </div>
+        <table>
+          <tr>
+            <td class="col-constraint"><span class="tag pk">PK</span></td>
+            <td class="col-name">id</td>
+            <td class="col-type">UUID</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span><span class="tag uk">UK*</span></td>
+            <td class="col-name">job_id</td>
+            <td class="col-type">UUID → jobs</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span><span class="tag uk">UK*</span></td>
+            <td class="col-name">candidate_id</td>
+            <td class="col-type">UUID → users</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"></td>
+            <td class="col-name">cover_letter</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span><span class="tag ck">CK</span></td>
+            <td class="col-name">stage</td>
+            <td class="col-type">TEXT</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">version</td>
+            <td class="col-type">INTEGER</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">created_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+          <tr>
+            <td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td>
+            <td class="col-name">updated_at</td>
+            <td class="col-type">TIMESTAMPTZ</td>
+          </tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_applications_job_id</span>
+          <span class="idx-tag">idx_applications_candidate_id</span>
+          <span class="idx-tag">idx_applications_stage</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">
+            UK* UNIQUE(job_id, candidate_id) — no duplicate applications<br>
+            CHECK stage IN ('applied','reviewed','interview','offered','rejected')<br>
+            version — optimistic locking (Phase 7)
+          </div>
+        </div>
+      </div>
+
+      <!-- Token tables -->
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name" style="color:#d8b4fe;">refresh_tokens</span>
+          <span class="tbl-migration">005_create_auth_tokens.sql</span>
+        </div>
+        <table>
+          <tr><td class="col-constraint"><span class="tag pk">PK</span></td><td class="col-name">id</td><td class="col-type">UUID</td></tr>
+          <tr><td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span></td><td class="col-name">user_id</td><td class="col-type">UUID → users</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag uk">UK</span></td><td class="col-name">token_hash</td><td class="col-type">TEXT</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span></td><td class="col-name">expires_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_refresh_tokens_user_id</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">7-day expiry · rotated on every /refresh call</div>
+        </div>
+      </div>
+
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name" style="color:#d8b4fe;">verification_tokens</span>
+          <span class="tbl-migration">005_create_auth_tokens.sql</span>
+        </div>
+        <table>
+          <tr><td class="col-constraint"><span class="tag pk">PK</span></td><td class="col-name">id</td><td class="col-type">UUID</td></tr>
+          <tr><td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span></td><td class="col-name">user_id</td><td class="col-type">UUID → users</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag uk">UK</span></td><td class="col-name">token_hash</td><td class="col-type">TEXT</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span></td><td class="col-name">expires_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_verification_tokens_user_id</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">24-hour expiry · consumed on use (deleted after verify)</div>
+        </div>
+      </div>
+
+      <div class="erd-card">
+        <div class="erd-card-header">
+          <span class="tbl-name" style="color:#d8b4fe;">password_reset_tokens</span>
+          <span class="tbl-migration">005_create_auth_tokens.sql</span>
+        </div>
+        <table>
+          <tr><td class="col-constraint"><span class="tag pk">PK</span></td><td class="col-name">id</td><td class="col-type">UUID</td></tr>
+          <tr><td class="col-constraint"><span class="tag fk">FK</span><span class="tag nn">NN</span></td><td class="col-name">user_id</td><td class="col-type">UUID → users</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag uk">UK</span></td><td class="col-name">token_hash</td><td class="col-type">TEXT</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span></td><td class="col-name">expires_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+          <tr><td class="col-constraint"><span class="tag nn">NN</span><span class="tag df">DF</span></td><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td></tr>
+        </table>
+        <div style="padding:0.5rem 1rem;border-top:1px solid var(--border)">
+          <span class="idx-tag">idx_password_reset_tokens_user_id</span>
+          <div style="margin-top:0.4rem;font-family:var(--mono);font-size:0.7rem;color:var(--muted)">1-hour expiry · old tokens purged before new one saved</div>
+        </div>
+      </div>
+
+    </div><!-- /three-col -->
+
+    <div style="margin-top:1.5rem;" class="two-col">
+      <div>
+        <aside class="info">
+          <strong>Why three separate token tables instead of one?</strong>
+          A single <code>tokens</code> table with a <code>type</code> column would work, but separate tables
+          make it impossible to accidentally use a verification token as a refresh token at the query level —
+          you'd have to explicitly query the wrong table. It also allows adding table-specific columns later
+          (e.g. a <code>device_name</code> on refresh tokens) without null pollution.
+        </aside>
+
+        <aside class="warn">
+          <strong>token_hash — never store raw tokens</strong>
+          Every token table stores a SHA-256 hash of the raw token, not the raw token itself.
+          Raw tokens live in HTTP-only cookies or email links. A DB breach exposes only hashes —
+          pre-image resistance means an attacker cannot reverse them into usable tokens.
+        </aside>
+      </div>
+      <div>
+        <aside class="confirm">
+          <strong>Indexes chosen for query patterns, not just FKs</strong>
+          The <code>jobs</code> table has 4 indexes: <code>company_id</code> (owner lookups),
+          <code>is_active</code> (candidate browsing filter), <code>job_type</code> and
+          <code>experience_level</code> (Phase 5 filters). Each index was added because a
+          specific query pattern needs it — not speculatively.
+        </aside>
+
+        <aside class="danger">
+          <strong>TIMESTAMPTZ, not TIMESTAMP</strong>
+          All timestamp columns use <code>TIMESTAMPTZ</code> (timestamp with time zone). PostgreSQL
+          stores these as UTC internally and converts on read. Using plain <code>TIMESTAMP</code> would
+          store wall-clock time without a timezone, making daylight saving transitions ambiguous.
+        </aside>
+      </div>
+    </div>
+
+    <!-- Tag Legend -->
+    <div class="ref-wrap" style="margin-top:1rem;">
+      <h3>Column tag legend</h3>
+      <table class="ref-table">
+        <thead><tr><th>Tag</th><th>Meaning</th><th>SQL Keyword</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag pk" style="font-size:0.75rem;">PK</span></td><td>Primary Key</td><td><code>PRIMARY KEY</code></td></tr>
+          <tr><td><span class="tag fk" style="font-size:0.75rem;">FK</span></td><td>Foreign Key (references another table)</td><td><code>REFERENCES table(id)</code></td></tr>
+          <tr><td><span class="tag uk" style="font-size:0.75rem;">UK</span></td><td>Unique Key / Unique Constraint</td><td><code>UNIQUE</code></td></tr>
+          <tr><td><span class="tag nn" style="font-size:0.75rem;">NN</span></td><td>Not Null</td><td><code>NOT NULL</code></td></tr>
+          <tr><td><span class="tag df" style="font-size:0.75rem;">DF</span></td><td>Has a Default value</td><td><code>DEFAULT ...</code></td></tr>
+          <tr><td><span class="tag ck" style="font-size:0.75rem;">CK</span></td><td>Check Constraint (enum or range)</td><td><code>CHECK (...)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 3 — API OVERVIEW
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-api-overview" class="panel">
+    <p class="section-heading">18 endpoints across 3 modules — method, path, auth, rate limit, status codes</p>
+
+    <div class="ref-wrap">
+      <h3>Health Module — /api/v1/health</h3>
+      <table class="ref-table">
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Auth</th><th>Rate Limit</th><th>Request Body</th><th>Success</th><th>Errors</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method get" style="font-size:0.75rem;">GET</span></td>
+            <td class="module-health"><code>/api/v1/health</code></td>
+            <td>None</td>
+            <td>Global 500/min</td>
+            <td>—</td>
+            <td>200 OK</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ref-wrap">
+      <h3>Auth Module — /api/v1/auth</h3>
+      <table class="ref-table">
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Auth</th><th>Rate Limit (per IP)</th><th>Request Body</th><th>Success</th><th>Errors</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/register/candidate</code></td>
+            <td>None</td>
+            <td>10 req / 15 min</td>
+            <td><code>{ email, password }</code></td>
+            <td>201</td>
+            <td>409 EMAIL_IN_USE · 422 · 429</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/register/company</code></td>
+            <td>None</td>
+            <td>10 req / 15 min (shared bucket)</td>
+            <td><code>{ email, password }</code></td>
+            <td>201</td>
+            <td>409 EMAIL_IN_USE · 422 · 429</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/login</code></td>
+            <td>None</td>
+            <td>20 req / 15 min</td>
+            <td><code>{ email, password }</code></td>
+            <td>200 + Set-Cookie</td>
+            <td>401 UNAUTHORIZED · 403 EMAIL_NOT_VERIFIED · 422 · 429</td>
+          </tr>
+          <tr>
+            <td><span class="method get" style="font-size:0.75rem;">GET</span></td>
+            <td class="module-auth"><code>/verify-email?token=&lt;raw&gt;</code></td>
+            <td>None</td>
+            <td>20 req / 15 min</td>
+            <td>—</td>
+            <td>200</td>
+            <td>400 INVALID_TOKEN · 429</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/refresh</code></td>
+            <td>Cookie</td>
+            <td>None</td>
+            <td>—</td>
+            <td>200 + new Set-Cookie</td>
+            <td>401 INVALID_TOKEN</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/logout</code></td>
+            <td>Cookie</td>
+            <td>None</td>
+            <td>—</td>
+            <td>200</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/forgot-password</code></td>
+            <td>None</td>
+            <td>5 req / 15 min</td>
+            <td><code>{ email }</code></td>
+            <td>200 (always, anti-enum)</td>
+            <td>422 · 429</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/reset-password</code></td>
+            <td>None</td>
+            <td>None</td>
+            <td><code>{ token, password }</code></td>
+            <td>200</td>
+            <td>400 INVALID_TOKEN · 422</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-auth"><code>/resend-verification</code></td>
+            <td>None</td>
+            <td>5 req / 15 min</td>
+            <td><code>{ email }</code></td>
+            <td>200 (always, anti-enum)</td>
+            <td>422 · 429</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ref-wrap">
+      <h3>Company Module — /api/v1/company &nbsp; (all require Bearer JWT with role=company)</h3>
+      <table class="ref-table">
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Auth</th><th>Rate Limit</th><th>Request Body</th><th>Success</th><th>Errors</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-company"><code>/profile</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td><code>{ name, description?, website?, logo_url? }</code></td>
+            <td>201</td>
+            <td>401 · 403 · 409 CONFLICT · 422</td>
+          </tr>
+          <tr>
+            <td><span class="method get" style="font-size:0.75rem;">GET</span></td>
+            <td class="module-company"><code>/profile</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td>—</td>
+            <td>200 (cached 5 min)</td>
+            <td>401 · 403 · 404 NOT_FOUND</td>
+          </tr>
+          <tr>
+            <td><span class="method put" style="font-size:0.75rem;">PUT</span></td>
+            <td class="module-company"><code>/profile</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td><code>{ name, description?, website?, logo_url? }</code></td>
+            <td>200</td>
+            <td>401 · 403 · 404 NOT_FOUND · 422</td>
+          </tr>
+          <tr>
+            <td><span class="method post" style="font-size:0.75rem;">POST</span></td>
+            <td class="module-company"><code>/jobs</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td><code>{ title, description, job_type, experience_level, location?, salary_min?, salary_max? }</code></td>
+            <td>201</td>
+            <td>401 · 403 · 404 (no profile) · 422</td>
+          </tr>
+          <tr>
+            <td><span class="method get" style="font-size:0.75rem;">GET</span></td>
+            <td class="module-company"><code>/jobs</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td>—</td>
+            <td>200 (cached 5 min)</td>
+            <td>401 · 403 · 404 (no profile)</td>
+          </tr>
+          <tr>
+            <td><span class="method get" style="font-size:0.75rem;">GET</span></td>
+            <td class="module-company"><code>/jobs/:id</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td>—</td>
+            <td>200 (cached 10 min)</td>
+            <td>401 · 403 · 404 NOT_FOUND</td>
+          </tr>
+          <tr>
+            <td><span class="method put" style="font-size:0.75rem;">PUT</span></td>
+            <td class="module-company"><code>/jobs/:id</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td><code>{ title?, description?, job_type?, experience_level?, location?, salary_min?, salary_max?, is_active? }</code></td>
+            <td>200</td>
+            <td>401 · 403 · 404 NOT_FOUND · 422</td>
+          </tr>
+          <tr>
+            <td><span class="method delete" style="font-size:0.75rem;">DELETE</span></td>
+            <td class="module-company"><code>/jobs/:id</code></td>
+            <td>Bearer + company</td>
+            <td>Global only</td>
+            <td>—</td>
+            <td>204 No Content</td>
+            <td>401 · 403 · 404 NOT_FOUND</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col">
+      <aside class="info">
+        <strong>Global Rate Limiter (all routes)</strong>
+        A sliding-window rate limiter of 500 requests per 60 seconds is applied at the Express
+        app level before any route. It uses the same Redis Lua atomic script as the auth-specific
+        limiters, keyed by <code>prohire:rate_limit:global:&lt;ip&gt;</code>.
+        This is the last line of defence against floods even on unauthenticated endpoints.
+      </aside>
+
+      <aside class="warn">
+        <strong>Anti-Enumeration on /forgot-password and /resend-verification</strong>
+        Both endpoints always return <code>200</code> with the same message regardless of whether
+        the email exists and regardless of whether an email was actually sent.
+        This prevents an attacker from probing which email addresses are registered.
+      </aside>
+    </div>
+
+    <div class="diagram-card" style="margin-top:0.5rem;">
+      <h3>Authentication and Authorization flow — how Bearer tokens flow into company routes</h3>
+      <pre class="graphviz">
+digraph {
+  rankdir=LR
+  bgcolor="#161b22"
+  node [fontname="Helvetica" fontsize=10 color="#30363d" style=filled fillcolor="#1c2333" fontcolor="#e6edf3" shape=box]
+  edge [color="#8b949e" fontname="Helvetica" fontsize=9 fontcolor="#8b949e"]
+
+  LOGIN  [label="POST /auth/login\nsupply email + password" shape=box style="filled,rounded" fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+  AT     [label="accessToken (JWT, 15 min)\nHS256 signed\npayload: { userId, email, role }" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  RT     [label="refreshToken (random, 7d)\nstored in httpOnly cookie\nhash saved to refresh_tokens table" style=filled fillcolor="#3b0764" color="#a855f7" fontcolor="#d8b4fe"]
+  REQ    [label="Authorization: Bearer &lt;accessToken&gt;\ncompany route request" shape=box style="filled,rounded"]
+  AUTH   [label="authenticate()\nverifyAccessToken(token)\nattach req.user = { userId, role }" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  AUTHZ  [label="authorize('company')\nreq.user.role === 'company'?" style=filled fillcolor="#064e3b" color="#059669" fontcolor="#6ee7b7"]
+  OK     [label="Controller runs\nreq.user.userId available" shape=box style="filled,rounded" fillcolor="#14532d" color="#22c55e" fontcolor="#86efac"]
+  E1     [label="401 UNAUTHORIZED\n(missing/invalid JWT)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  E2     [label="403 FORBIDDEN\n(wrong role)" shape=box style="filled,rounded" fillcolor="#7f1d1d" color="#ef4444" fontcolor="#fca5a5"]
+  REFRESH [label="POST /auth/refresh\ncookie → new accessToken" style=filled fillcolor="#1e3a5f" color="#3b82f6" fontcolor="#93c5fd"]
+
+  LOGIN -> AT
+  LOGIN -> RT
+  AT -> REQ    [label="client stores in memory"]
+  REQ -> AUTH
+  AUTH -> E1   [label="fails"]
+  AUTH -> AUTHZ [label="passes"]
+  AUTHZ -> E2  [label="role mismatch"]
+  AUTHZ -> OK  [label="role = company"]
+  AT -> REFRESH [label="expired (15 min)"]
+  RT -> REFRESH [label="cookie sent automatically"]
+  REFRESH -> AT [label="new accessToken" style=dashed]
+}
+      </pre>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 4 — ENDPOINT DETAIL
+  ══════════════════════════════════════════════════ -->
+  <section id="panel-api-detail" class="panel">
+    <p class="section-heading">Full request body, response shape, and error codes for every endpoint</p>
+
+    <nav class="ep-nav">
+      <button class="ep-btn active" data-ep="health">GET /health</button>
+      <button class="ep-btn" data-ep="reg-candidate">POST /register/candidate</button>
+      <button class="ep-btn" data-ep="reg-company">POST /register/company</button>
+      <button class="ep-btn" data-ep="login">POST /login</button>
+      <button class="ep-btn" data-ep="verify">GET /verify-email</button>
+      <button class="ep-btn" data-ep="refresh">POST /refresh</button>
+      <button class="ep-btn" data-ep="logout">POST /logout</button>
+      <button class="ep-btn" data-ep="forgot">POST /forgot-password</button>
+      <button class="ep-btn" data-ep="reset">POST /reset-password</button>
+      <button class="ep-btn" data-ep="resend">POST /resend-verification</button>
+      <button class="ep-btn" data-ep="co-create-profile">POST /company/profile</button>
+      <button class="ep-btn" data-ep="co-get-profile">GET /company/profile</button>
+      <button class="ep-btn" data-ep="co-update-profile">PUT /company/profile</button>
+      <button class="ep-btn" data-ep="co-create-job">POST /company/jobs</button>
+      <button class="ep-btn" data-ep="co-list-jobs">GET /company/jobs</button>
+      <button class="ep-btn" data-ep="co-get-job">GET /company/jobs/:id</button>
+      <button class="ep-btn" data-ep="co-update-job">PUT /company/jobs/:id</button>
+      <button class="ep-btn" data-ep="co-delete-job">DELETE /company/jobs/:id</button>
+    </nav>
+
+    <!-- GET /health -->
+    <div id="ep-health" class="ep-panel active">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/health</span>
+        <div class="status-badges"><span class="status s2xx">200 OK</span></div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">authenticate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">rate limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">inline handler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>None</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"status"</span>:    <span class="s">"ok"</span>,
+  <span class="k">"uptime"</span>:    <span class="v">12345.67</span>,  <span class="cm">// process.uptime() seconds</span>
+  <span class="k">"timestamp"</span>: <span class="s">"2026-04-10T09:00:00.000Z"</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="info"><strong>Purpose</strong>Used by Docker healthchecks and uptime monitors to confirm the Node.js process is alive and responding.</aside>
+    </div>
+
+    <!-- POST /register/candidate -->
+    <div id="ep-reg-candidate" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/register/candidate</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">409 · 422 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 10/15 min/IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(RegisterDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"email"</span>:    <span class="s">"user@example.com"</span>,  <span class="cm">// string, valid email format</span>
+  <span class="k">"password"</span>: <span class="s">"secret123"</span>         <span class="cm">// string, 8–100 chars</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">201 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Registration successful. Please verify your email."</span>
+}</pre>
+        </div>
+      </div>
+      <div class="schema-block" style="margin-bottom:1.25rem;">
+        <div class="schema-block-header err">Error Responses</div>
+        <pre><span class="cm">// 409 — email already registered</span>
+{ <span class="k">"success"</span>: <span class="v">false</span>, <span class="k">"error"</span>: { <span class="k">"code"</span>: <span class="s">"CONFLICT"</span>, <span class="k">"statusCode"</span>: <span class="v">409</span>, <span class="k">"message"</span>: <span class="s">"Email is already in use."</span> } }
+
+<span class="cm">// 422 — validation failed</span>
+{ <span class="k">"success"</span>: <span class="v">false</span>, <span class="k">"error"</span>: { <span class="k">"code"</span>: <span class="s">"VALIDATION_ERROR"</span>, <span class="k">"statusCode"</span>: <span class="v">422</span>, <span class="k">"fields"</span>: [{ <span class="k">"field"</span>: <span class="s">"password"</span>, <span class="k">"message"</span>: <span class="s">"..."</span> }] } }
+
+<span class="cm">// 429 — rate limited</span>
+{ <span class="k">"success"</span>: <span class="v">false</span>, <span class="k">"error"</span>: { <span class="k">"code"</span>: <span class="s">"RATE_LIMITED"</span>, <span class="k">"statusCode"</span>: <span class="v">429</span>, <span class="k">"message"</span>: <span class="s">"Too many requests."</span> } }</pre>
+      </div>
+      <aside class="info"><strong>What happens internally</strong>bcrypt.hash(password, 12) → generateToken() → SHA-256 hash → db.transaction(INSERT users + INSERT verification_tokens) → BullMQ enqueue verification email.</aside>
+    </div>
+
+    <!-- POST /register/company -->
+    <div id="ep-reg-company" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/register/company</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">409 · 422 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 10/15 min/IP (shared bucket)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(RegisterDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"email"</span>:    <span class="s">"ceo@acme.com"</span>,
+  <span class="k">"password"</span>: <span class="s">"secret123"</span>    <span class="cm">// 8–100 chars</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">201 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Registration successful. Please verify your email."</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="warn"><strong>Same flow, different role</strong>Identical to /register/candidate except <code>role = 'company'</code> is inserted into the users table. The company profile (companies table) is NOT created here — that is a separate POST /company/profile call after login.</aside>
+    </div>
+
+    <!-- POST /login -->
+    <div id="ep-login" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/login</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 422 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 20/15 min/IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(LoginDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"email"</span>:    <span class="s">"user@example.com"</span>,
+  <span class="k">"password"</span>: <span class="s">"secret123"</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response + Set-Cookie</div>
+          <pre>{
+  <span class="k">"success"</span>:     <span class="v">true</span>,
+  <span class="k">"accessToken"</span>: <span class="s">"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."</span>,
+  <span class="k">"user"</span>: {
+    <span class="k">"id"</span>:    <span class="s">"uuid"</span>,
+    <span class="k">"email"</span>: <span class="s">"user@example.com"</span>,
+    <span class="k">"role"</span>:  <span class="s">"company"</span>
+  }
+}
+<span class="cm">// Set-Cookie: refreshToken=&lt;raw&gt;; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800</span></pre>
+        </div>
+      </div>
+      <div class="schema-block" style="margin-bottom:1.25rem;">
+        <div class="schema-block-header err">Error Responses</div>
+        <pre><span class="cm">// 401 — wrong email or wrong password (same message, anti-enumeration)</span>
+{ <span class="k">"error"</span>: { <span class="k">"code"</span>: <span class="s">"UNAUTHORIZED"</span>, <span class="k">"message"</span>: <span class="s">"Invalid credentials"</span> } }
+
+<span class="cm">// 403 — correct password but email not yet verified</span>
+{ <span class="k">"error"</span>: { <span class="k">"code"</span>: <span class="s">"EMAIL_NOT_VERIFIED"</span>, <span class="k">"message"</span>: <span class="s">"Please verify your email before logging in."</span> } }</pre>
+      </div>
+      <aside class="info"><strong>accessToken lifetime</strong>15 minutes. Store in memory (Zustand store), never in localStorage. When it expires, the frontend's Axios interceptor automatically calls <code>POST /refresh</code> with the httpOnly cookie to get a new one.</aside>
+    </div>
+
+    <!-- GET /verify-email -->
+    <div id="ep-verify" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/auth/verify-email?token=&lt;rawToken&gt;</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">400 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 20/15 min/IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request</div>
+          <pre>GET /api/v1/auth/verify-email?token=abc123...
+<span class="cm">// token is the raw 32-byte hex string from the email link</span></pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Email verified successfully."</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="confirm"><strong>Hash-then-lookup</strong>Server calls SHA-256(rawToken) and queries verification_tokens by hash. The token is deleted after successful verification — the same link cannot be used twice.</aside>
+    </div>
+
+    <!-- POST /refresh -->
+    <div id="ep-refresh" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/refresh</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 INVALID_TOKEN</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">rate limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill off">validate — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request</div>
+          <pre>No body.
+Cookie: refreshToken=&lt;rawToken&gt;  <span class="cm">// sent automatically by browser</span></pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response + new Set-Cookie</div>
+          <pre>{
+  <span class="k">"success"</span>:     <span class="v">true</span>,
+  <span class="k">"accessToken"</span>: <span class="s">"eyJ..."</span>,
+  <span class="k">"user"</span>: { <span class="k">"id"</span>: <span class="s">"uuid"</span>, <span class="k">"email"</span>: <span class="s">"..."</span>, <span class="k">"role"</span>: <span class="s">"..."</span> }
+}
+<span class="cm">// Old cookie cleared, new refreshToken cookie set (7d)</span></pre>
+        </div>
+      </div>
+      <aside class="warn"><strong>Token rotation on every refresh</strong>The old refresh token row is deleted and a new one is inserted atomically. A stolen refresh token can only be used once — the next legitimate refresh will fail and expose the theft.</aside>
+    </div>
+
+    <!-- POST /logout -->
+    <div id="ep-logout" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/logout</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">rate limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request</div>
+          <pre>No body.
+Cookie: refreshToken=&lt;rawToken&gt;</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Logged out successfully."</span>
+}
+<span class="cm">// Set-Cookie: refreshToken=; Max-Age=0  (cookie cleared)</span></pre>
+        </div>
+      </div>
+      <aside class="confirm"><strong>Server-side invalidation</strong>The refresh token hash is deleted from the database. The cookie is also cleared on the client. Even if someone captures the old cookie value, it is no longer valid in the DB.</aside>
+    </div>
+
+    <!-- POST /forgot-password -->
+    <div id="ep-forgot" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/forgot-password</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK (always)</span>
+          <span class="status s4xx">422 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 5/15 min/IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ForgotPasswordDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"email"</span>: <span class="s">"user@example.com"</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response (always)</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"If an account with that email exists, a reset link has been sent."</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="danger"><strong>Anti-enumeration response</strong>Always 200. The email is only sent if the account exists AND is verified. The response gives no indication of which condition applied.</aside>
+    </div>
+
+    <!-- POST /reset-password -->
+    <div id="ep-reset" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/reset-password</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">400 · 422</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill off">rate limit — none</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ResetPasswordDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"token"</span>:    <span class="s">"abc123..."</span>,   <span class="cm">// raw token from email link</span>
+  <span class="k">"password"</span>: <span class="s">"newpassword"</span>  <span class="cm">// 8–100 chars</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"Password reset successfully."</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="confirm"><strong>Token consumed on use</strong>The password_reset_token row is deleted, the user's password_hash is updated with bcrypt(newPassword, 12). The user must log in again with the new password.</aside>
+    </div>
+
+    <!-- POST /resend-verification -->
+    <div id="ep-resend" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/auth/resend-verification</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK (always)</span>
+          <span class="status s4xx">422 · 429</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill rl">Rate Limit 5/15 min/IP</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(ResendVerificationDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"email"</span>: <span class="s">"user@example.com"</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response (always)</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"message"</span>: <span class="s">"If your account is unverified, a new email has been sent."</span>
+}</pre>
+        </div>
+      </div>
+      <aside class="danger"><strong>Anti-enumeration response</strong>Always 200 regardless of account state. Email only sent if account exists and is_verified = false.</aside>
+    </div>
+
+    <!-- POST /company/profile -->
+    <div id="ep-co-create-profile" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">401 · 403 · 409 · 422</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpsertCompanyProfileDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"name"</span>:        <span class="s">"Acme Corp"</span>,         <span class="cm">// required, 1–200 chars</span>
+  <span class="k">"description"</span>: <span class="s">"We make things."</span>,  <span class="cm">// optional, max 2000 chars</span>
+  <span class="k">"website"</span>:     <span class="s">"https://acme.com"</span>, <span class="cm">// optional, valid URL or ""</span>
+  <span class="k">"logo_url"</span>:    <span class="s">"https://..."</span>       <span class="cm">// optional, valid URL or ""</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">201 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: {
+    <span class="k">"id"</span>:          <span class="s">"uuid"</span>,
+    <span class="k">"owner_id"</span>:   <span class="s">"uuid"</span>,
+    <span class="k">"name"</span>:        <span class="s">"Acme Corp"</span>,
+    <span class="k">"description"</span>: <span class="s">"We make things."</span>,
+    <span class="k">"website"</span>:     <span class="s">"https://acme.com"</span>,
+    <span class="k">"logo_url"</span>:    <span class="v">null</span>,
+    <span class="k">"created_at"</span>:  <span class="s">"2026-04-10T09:00:00Z"</span>,
+    <span class="k">"updated_at"</span>:  <span class="s">"2026-04-10T09:00:00Z"</span>
+  }
+}</pre>
+        </div>
+      </div>
+      <aside class="warn"><strong>One profile per user</strong>Returns 409 CONFLICT if a company profile already exists for this user. Create the profile once after first login, then use PUT to update it.</aside>
+    </div>
+
+    <!-- GET /company/profile -->
+    <div id="ep-co-get-profile" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 404</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block"><div class="schema-block-header req">Request Body</div><pre>None</pre></div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response (Redis-cached 5 min)</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: { <span class="cm">/* CompanyRow */</span>
+    <span class="k">"id"</span>, <span class="k">"owner_id"</span>, <span class="k">"name"</span>, <span class="k">"description"</span>,
+    <span class="k">"website"</span>, <span class="k">"logo_url"</span>, <span class="k">"created_at"</span>, <span class="k">"updated_at"</span>
+  }
+}</pre>
+        </div>
+      </div>
+      <aside class="info"><strong>Cache key</strong><code>prohire:company:profile:{userId}</code> — TTL 300 s. Cache is busted by PUT /company/profile.</aside>
+    </div>
+
+    <!-- PUT /company/profile -->
+    <div id="ep-co-update-profile" class="ep-panel">
+      <div class="route-badge">
+        <span class="method put">PUT</span>
+        <span class="route-path">/api/v1/company/profile</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 404 · 422</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpsertCompanyProfileDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body (same as POST /profile)</div>
+          <pre>{
+  <span class="k">"name"</span>:        <span class="s">"Acme Corp v2"</span>,
+  <span class="k">"description"</span>: <span class="s">"Updated."</span>,
+  <span class="k">"website"</span>:     <span class="s">"https://acme.io"</span>,
+  <span class="k">"logo_url"</span>:    <span class="s">""</span>             <span class="cm">// empty string clears the field</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: { <span class="cm">/* updated CompanyRow */</span> }
+}
+<span class="cm">// Cache key prohire:company:profile:{userId} is invalidated</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST /company/jobs -->
+    <div id="ep-co-create-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method post">POST</span>
+        <span class="route-path">/api/v1/company/jobs</span>
+        <div class="status-badges">
+          <span class="status s2xx">201 Created</span>
+          <span class="status s4xx">401 · 403 · 404 · 422</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(CreateJobDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body</div>
+          <pre>{
+  <span class="k">"title"</span>:            <span class="s">"Senior Engineer"</span>,   <span class="cm">// required, 1–200 chars</span>
+  <span class="k">"description"</span>:      <span class="s">"Build cool things"</span>, <span class="cm">// required, min 1 char</span>
+  <span class="k">"job_type"</span>:          <span class="s">"remote"</span>,            <span class="cm">// required: remote|hybrid|onsite</span>
+  <span class="k">"experience_level"</span>:  <span class="s">"senior"</span>,            <span class="cm">// required: junior|mid|senior</span>
+  <span class="k">"location"</span>:          <span class="s">"London"</span>,            <span class="cm">// optional</span>
+  <span class="k">"salary_min"</span>:        <span class="v">80000</span>,              <span class="cm">// optional, positive number</span>
+  <span class="k">"salary_max"</span>:        <span class="v">120000</span>             <span class="cm">// optional, must be >= salary_min</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">201 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: {
+    <span class="k">"id"</span>:               <span class="s">"uuid"</span>,
+    <span class="k">"company_id"</span>:       <span class="s">"uuid"</span>,
+    <span class="k">"title"</span>:            <span class="s">"Senior Engineer"</span>,
+    <span class="k">"description"</span>:     <span class="s">"Build cool things"</span>,
+    <span class="k">"location"</span>:         <span class="s">"London"</span>,
+    <span class="k">"job_type"</span>:         <span class="s">"remote"</span>,
+    <span class="k">"experience_level"</span>: <span class="s">"senior"</span>,
+    <span class="k">"salary_min"</span>:       <span class="s">"80000.00"</span>,   <span class="cm">// NUMERIC returned as string by pg</span>
+    <span class="k">"salary_max"</span>:       <span class="s">"120000.00"</span>,
+    <span class="k">"is_active"</span>:        <span class="v">true</span>,
+    <span class="k">"created_at"</span>:       <span class="s">"2026-04-10T09:00:00Z"</span>,
+    <span class="k">"updated_at"</span>:       <span class="s">"2026-04-10T09:00:00Z"</span>
+  }
+}</pre>
+        </div>
+      </div>
+      <aside class="warn"><strong>salary_min / salary_max returned as strings</strong>PostgreSQL's <code>NUMERIC</code> type is returned as a string by the <code>pg</code> driver to avoid JavaScript floating-point precision loss. Parse with <code>parseFloat()</code> or <code>Decimal.js</code> on the frontend.</aside>
+    </div>
+
+    <!-- GET /company/jobs -->
+    <div id="ep-co-list-jobs" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/jobs</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 404</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block"><div class="schema-block-header req">Request</div><pre>No body. No query params.</pre></div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response (Redis-cached 5 min)</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: [ <span class="cm">/* array of JobRow, ordered by created_at DESC */</span> ]
+}
+<span class="cm">// Includes BOTH active and inactive jobs (is_active=true/false)</span>
+<span class="cm">// Cache key: prohire:company:jobs:{companyId}</span></pre>
+        </div>
+      </div>
+      <aside class="info"><strong>Returns all jobs including soft-deleted</strong>The company-facing list includes jobs with <code>is_active = false</code> so the owner can see deactivated listings. The candidate-facing list (Phase 5) will filter to <code>is_active = true</code> only.</aside>
+    </div>
+
+    <!-- GET /company/jobs/:id -->
+    <div id="ep-co-get-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method get">GET</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 404</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block"><div class="schema-block-header req">Request</div><pre>No body.
+Path param: :id — UUID of the job</pre></div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response (Redis-cached 10 min)</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: { <span class="cm">/* JobRow */</span> }
+}
+<span class="cm">// Cache key: prohire:job:{jobId} — TTL 600s</span></pre>
+        </div>
+      </div>
+      <aside class="info"><strong>Ownership enforced in SQL</strong>Query is <code>WHERE id = $1 AND company_id = $2</code>. A job owned by a different company returns 404, not 403 — no information leakage about job existence.</aside>
+    </div>
+
+    <!-- PUT /company/jobs/:id -->
+    <div id="ep-co-update-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method put">PUT</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">200 OK</span>
+          <span class="status s4xx">401 · 403 · 404 · 422</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">validate(UpdateJobDto)</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block">
+          <div class="schema-block-header req">Request Body (all fields optional)</div>
+          <pre>{
+  <span class="k">"title"</span>?:            <span class="s">"Updated Title"</span>,
+  <span class="k">"description"</span>?:     <span class="s">"New description"</span>,
+  <span class="k">"location"</span>?:         <span class="s">"Remote"</span>,
+  <span class="k">"job_type"</span>?:          <span class="s">"hybrid"</span>,         <span class="cm">// remote|hybrid|onsite</span>
+  <span class="k">"experience_level"</span>?: <span class="s">"mid"</span>,            <span class="cm">// junior|mid|senior</span>
+  <span class="k">"salary_min"</span>?:       <span class="v">60000</span>,
+  <span class="k">"salary_max"</span>?:       <span class="v">90000</span>,
+  <span class="k">"is_active"</span>?:        <span class="v">false</span>             <span class="cm">// can reactivate a soft-deleted job</span>
+}</pre>
+        </div>
+        <div class="schema-block">
+          <div class="schema-block-header res">200 Response</div>
+          <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"data"</span>: { <span class="cm">/* updated JobRow */</span> }
+}
+<span class="cm">// Invalidates: prohire:job:{jobId} + prohire:company:jobs:{companyId}</span></pre>
+        </div>
+      </div>
+      <aside class="confirm"><strong>Partial update via COALESCE</strong>Only send the fields you want to change. Omitted fields keep their current values. <code>is_active: true</code> can reactivate a previously deactivated job.</aside>
+    </div>
+
+    <!-- DELETE /company/jobs/:id -->
+    <div id="ep-co-delete-job" class="ep-panel">
+      <div class="route-badge">
+        <span class="method delete">DELETE</span>
+        <span class="route-path">/api/v1/company/jobs/:id</span>
+        <div class="status-badges">
+          <span class="status s2xx">204 No Content</span>
+          <span class="status s4xx">401 · 403 · 404</span>
+        </div>
+      </div>
+      <div class="middleware-strip">
+        <span class="mw-label">chain:</span>
+        <span class="pill on">authenticate</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">authorize("company")</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill on">asyncHandler</span>
+      </div>
+      <div class="schema-grid">
+        <div class="schema-block"><div class="schema-block-header req">Request</div><pre>No body.
+Path param: :id — UUID of the job</pre></div>
+        <div class="schema-block">
+          <div class="schema-block-header res">204 No Content</div>
+          <pre>Empty body.
+<span class="cm">// is_active set to FALSE in DB (soft delete — row not removed)</span>
+<span class="cm">// Invalidates: prohire:job:{jobId} + prohire:company:jobs:{companyId}</span></pre>
+        </div>
+      </div>
+      <aside class="danger"><strong>Soft delete — not reversible via this endpoint</strong>Sets <code>is_active = FALSE</code>. To reactivate use <code>PUT /jobs/:id { "is_active": true }</code>. The row is never hard-deleted to preserve referential integrity for existing applications.</aside>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+  // ─── Main Tab Switching ──────────────────────────────────────
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const panels  = document.querySelectorAll('.panel');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const activePanel = document.getElementById('panel-' + target);
+      if (activePanel) {
+        activePanel.classList.add('active');
+        renderPanel('panel-' + target);
+        if (target === 'api-detail') {
+          const activeEp = activePanel.querySelector('.ep-panel.active');
+          if (activeEp) renderPanel(activeEp.id);
+        }
+      }
+    });
+  });
+
+  // ─── Endpoint Sub-tab Switching ─────────────────────────────
+  const epBtns   = document.querySelectorAll('.ep-btn');
+  const epPanels = document.querySelectorAll('.ep-panel');
+
+  epBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.ep;
+      epBtns.forEach(b => b.classList.remove('active'));
+      epPanels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const epPanel = document.getElementById('ep-' + target);
+      if (epPanel) {
+        epPanel.classList.add('active');
+        renderPanel('ep-' + target);
+      }
+    });
+  });
+
+  // ─── Viz.js Rendering ───────────────────────────────────────
+  const renderedPanels = new Set();
+  const viz = new Viz();
+
+  function renderPanel(panelId) {
+    if (renderedPanels.has(panelId)) return;
+    renderedPanels.add(panelId);
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.querySelectorAll('pre.graphviz').forEach(pre => {
+      const dot = pre.textContent;
+      viz.renderSVGElement(dot)
+        .then(svg => {
+          svg.setAttribute('class', 'viz-svg');
+          pre.replaceWith(svg);
+        })
+        .catch(e => {
+          pre.textContent = 'Diagram error: ' + e.message;
+          pre.style.color = '#ef4444';
+        });
+    });
+  }
+
+  // Render initially-visible panels
+  renderPanel('panel-erd');
+  renderPanel('ep-health');
+</script>
+
+</body>
+</html>
