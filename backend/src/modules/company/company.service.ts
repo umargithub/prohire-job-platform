@@ -8,6 +8,7 @@ import {
 import { getOrSet, invalidate } from "../../core/redis/cache";
 import { TTL } from "../../core/redis/ttl.constants";
 import { ConflictError, NotFoundError } from "../../core/errors/AppError";
+import { uploadToCloudinary, deleteFromCloudinary } from "../../core/utils/cloudinary";
 
 export class CompanyService {
   constructor(private readonly companyRepository: CompanyRepository) {}
@@ -50,6 +51,24 @@ export class CompanyService {
     return company;
   }
 
+  async uploadLogo(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<CompanyRow> {
+    const existing = await this.companyRepository.findCompanyByOwnerId(userId);
+    if (!existing) throw new NotFoundError("Company profile");
+
+    if (existing.logo_url) {
+      await deleteFromCloudinary(existing.logo_url);
+    }
+
+    const logoUrl = await uploadToCloudinary(file.buffer, "logos", file.mimetype);
+    const company = await this.companyRepository.updateLogoUrl(userId, logoUrl);
+    if (!company) throw new NotFoundError("Company profile");
+    await invalidate(`prohire:company:profile:${userId}`);
+    return company;
+  }
+
   // ── Jobs ───────────────────────────────────────────────────────────────────
 
   private async resolveCompany(userId: string): Promise<CompanyRow> {
@@ -62,6 +81,7 @@ export class CompanyService {
     const company = await this.resolveCompany(userId);
     const job = await this.companyRepository.createJob(company.id, input);
     await invalidate(`prohire:company:jobs:${company.id}`);
+    await invalidate("prohire:jobs:list:*");
     return job;
   }
 
@@ -98,6 +118,8 @@ export class CompanyService {
     if (!job) throw new NotFoundError("Job");
     await invalidate(`prohire:job:${company.id}:${jobId}`);
     await invalidate(`prohire:company:jobs:${company.id}`);
+    await invalidate("prohire:jobs:list:*");
+    await invalidate(`prohire:job:detail:${jobId}`);
     return job;
   }
 
@@ -110,5 +132,7 @@ export class CompanyService {
     if (!deleted) throw new NotFoundError("Job");
     await invalidate(`prohire:job:${company.id}:${jobId}`);
     await invalidate(`prohire:company:jobs:${company.id}`);
+    await invalidate("prohire:jobs:list:*");
+    await invalidate(`prohire:job:detail:${jobId}`);
   }
 }

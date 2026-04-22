@@ -59,12 +59,13 @@ return {count, 1}
  * @param windowMs - Sliding window duration in milliseconds.
  * @param scope    - "ip"     → one counter per IP address (default)
  *                   "global" → single shared counter for all IPs
+ *                   "user"   → one counter per authenticated user ID
  */
 export function createRateLimiter(
   action: string,
   limit: number,
   windowMs: number,
-  scope: "ip" | "global" = "ip",
+  scope: "ip" | "global" | "user" = "ip",
 ): RequestHandler {
   return async (
     req: Request,
@@ -77,7 +78,9 @@ export function createRateLimiter(
     const key =
       scope === "global"
         ? `prohire:rate_limit:global:${action}`
-        : `prohire:rate_limit:ip:${action}:${ip}`;
+        : scope === "user"
+          ? `prohire:rate_limit:user:${action}:${req.user?.userId ?? ip}`
+          : `prohire:rate_limit:ip:${action}:${ip}`;
 
     const now = Date.now();
     const windowStart = now - windowMs;

@@ -19,10 +19,18 @@ import { AuthController } from "./modules/auth/auth.controller";
 import { CompanyRepository } from "./modules/company/company.repository";
 import { CompanyService } from "./modules/company/company.service";
 import { CompanyController } from "./modules/company/company.controller";
+import { JobsRepository } from "./modules/jobs/jobs.repository";
+import { JobsService } from "./modules/jobs/jobs.service";
+import { JobsController } from "./modules/jobs/jobs.controller";
+import { CandidateRepository } from "./modules/candidate/candidate.repository";
+import { CandidateService } from "./modules/candidate/candidate.service";
+import { CandidateController } from "./modules/candidate/candidate.controller";
 
 import healthRoutes from "./modules/health/health.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import companyRoutes from "./modules/company/company.routes";
+import jobsRoutes from "./modules/jobs/jobs.routes";
+import candidateRoutes from "./modules/candidate/candidate.routes";
 
 const app = express();
 
@@ -85,11 +93,31 @@ container.register(
   "companyController",
   () => new CompanyController(container.resolve<CompanyService>("companyService")),
 );
+container.register("jobsRepository", () => new JobsRepository(db));
+container.register(
+  "jobsService",
+  () => new JobsService(container.resolve<JobsRepository>("jobsRepository")),
+);
+container.register(
+  "jobsController",
+  () => new JobsController(container.resolve<JobsService>("jobsService")),
+);
+container.register("candidateRepository", () => new CandidateRepository(db));
+container.register(
+  "candidateService",
+  () => new CandidateService(container.resolve<CandidateRepository>("candidateRepository")),
+);
+container.register(
+  "candidateController",
+  () => new CandidateController(container.resolve<CandidateService>("candidateService")),
+);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1/auth", authRoutes(container.resolve<AuthController>("authController")));
 app.use("/api/v1/company", companyRoutes(container.resolve<CompanyController>("companyController")));
+app.use("/api/v1/jobs", jobsRoutes(container.resolve<JobsController>("jobsController")));
+app.use("/api/v1/candidate", candidateRoutes(container.resolve<CandidateController>("candidateController")));
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction): void => {

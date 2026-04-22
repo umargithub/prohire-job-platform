@@ -56,6 +56,20 @@ export class CompanyRepository {
     return result.rows[0] ?? null;
   }
 
+  async updateLogoUrl(
+    ownerId: string,
+    logoUrl: string,
+  ): Promise<CompanyRow | null> {
+    const result = await this.db.query<CompanyRow>(
+      `UPDATE companies
+       SET logo_url = $1, updated_at = NOW()
+       WHERE owner_id = $2
+       RETURNING *`,
+      [logoUrl, ownerId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async createJob(companyId: string, input: CreateJobInput): Promise<JobRow> {
     const result = await this.db.query<JobRow>(
       `INSERT INTO jobs (company_id, title, description, location, job_type, experience_level, salary_min, salary_max)
