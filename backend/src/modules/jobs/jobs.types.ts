@@ -1,7 +1,12 @@
-export type { JobRow, JobResponse } from "../company/company.types";
+import type { JobRow } from "../company/company.types";
+
+export interface FindJobsResult {
+  jobs: JobRow[];
+  total: number;
+}
 
 export interface PaginatedJobs {
-  jobs: import("../company/company.types").JobRow[];
+  jobs: JobRow[];
   total: number;
   page: number;
   limit: number;

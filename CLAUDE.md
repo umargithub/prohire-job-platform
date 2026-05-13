@@ -40,7 +40,7 @@ Phase 1  → Project skeleton + Docker
 Phase 2  → Database schema + migrations
 Phase 3  → Authentication system
 Phase 4  → Company job management (CRUD + cache)
-Phase 5  → Candidate job browsing (filters + rate limit)
+Phase 5  → Candidate job browsing (filters + rate limit) + candidate profile (create/get/update)
 Phase 6  → Application system (transactional)
 Phase 7  → Optimistic locking for stage transitions
 Phase 8  → Background jobs (BullMQ)

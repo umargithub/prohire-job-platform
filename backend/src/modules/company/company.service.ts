@@ -62,7 +62,7 @@ export class CompanyService {
       await deleteFromCloudinary(existing.logo_url);
     }
 
-    const logoUrl = await uploadToCloudinary(file.buffer, "logos", file.mimetype);
+    const logoUrl = await uploadToCloudinary(file.buffer, "logos");
     const company = await this.companyRepository.updateLogoUrl(userId, logoUrl);
     if (!company) throw new NotFoundError("Company profile");
     await invalidate(`prohire:company:profile:${userId}`);

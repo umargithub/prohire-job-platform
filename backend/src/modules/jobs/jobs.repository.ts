@@ -1,11 +1,7 @@
 import { DatabaseClient } from "../../core/database/db";
-import { JobRow } from "./jobs.types";
+import type { JobRow } from "../company/company.types";
 import { ListJobsQueryInput } from "./jobs.dto";
-
-export interface FindJobsResult {
-  jobs: JobRow[];
-  total: number;
-}
+import { FindJobsResult } from "./jobs.types";
 
 export class JobsRepository {
   constructor(private readonly db: DatabaseClient) {}
@@ -14,9 +10,9 @@ export class JobsRepository {
     const conditions: string[] = ["is_active = TRUE"];
     const params: unknown[] = [];
 
-    if (filters.title) {
-      params.push(`%${filters.title}%`);
-      conditions.push(`title ILIKE $${params.length}`);
+    if (filters.search) {
+      params.push(filters.search);
+      conditions.push(`search_vector @@ websearch_to_tsquery('english', $${params.length})`);
     }
     if (filters.location) {
       params.push(`%${filters.location}%`);

@@ -18,7 +18,9 @@ export class CandidateRepository {
     return result.rows[0]!;
   }
 
-  async findProfileByUserId(userId: string): Promise<CandidateProfileRow | null> {
+  async findProfileByUserId(
+    userId: string,
+  ): Promise<CandidateProfileRow | null> {
     const result = await this.db.query<CandidateProfileRow>(
       "SELECT * FROM candidate_profiles WHERE user_id = $1",
       [userId],

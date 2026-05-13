@@ -297,13 +297,25 @@ type      job_type enum filter
 | DELETE | `/bookmarks/:jobId` | Bearer (candidate) | Remove bookmark |
 | GET    | `/bookmarks`        | Bearer (candidate) | List bookmarks  |
 
-### 5.6 Candidate Profile (`/profile`)
+### 5.6 Candidate Profile (`/candidate`)
 
-| Method | Path              | Auth               | Description               |
-| ------ | ----------------- | ------------------ | ------------------------- |
-| GET    | `/profile`        | Bearer (candidate) | Get own profile           |
-| PATCH  | `/profile`        | Bearer (candidate) | Update bio / skills       |
-| POST   | `/profile/resume` | Bearer (candidate) | Upload resume (multipart) |
+| Method | Path                  | Auth               | Description                       |
+| ------ | --------------------- | ------------------ | --------------------------------- |
+| POST   | `/candidate/profile`  | Bearer (candidate) | Create candidate profile          |
+| GET    | `/candidate/profile`  | Bearer (candidate) | Get own profile                   |
+| PUT    | `/candidate/profile`  | Bearer (candidate) | Update profile (full replacement) |
+
+**Request body (POST / PUT):**
+
+```json
+{
+  "full_name": "Jane Doe",
+  "bio": "Full-stack developer with 3 years of experience.",
+  "resume_url": "https://example.com/resume.pdf"
+}
+```
+
+> Resume file upload (multipart) deferred to a later phase when S3/storage integration is added.
 
 ### 5.7 Admin (`/admin`)
 

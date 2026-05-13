@@ -6,7 +6,7 @@ import {
   CreateJobInput,
   UpdateJobInput,
 } from "./company.dto";
-import { toCompanyResponse, toJobResponse } from "./company.types";
+import { toCompanyResponse, toJobResponse } from "./company.mapper";
 import { AppError } from "../../core/errors/AppError";
 
 export class CompanyController {
@@ -39,8 +39,7 @@ export class CompanyController {
 
   uploadLogo = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      if (!req.file) throw new AppError("No file uploaded.", 422, "NO_FILE");
-      const row = await this.companyService.uploadLogo(req.user!.userId, req.file);
+      const row = await this.companyService.uploadLogo(req.user!.userId, req.file!);
       res.status(200).json({ success: true, data: toCompanyResponse(row) });
     },
   );

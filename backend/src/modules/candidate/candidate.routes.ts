@@ -7,9 +7,16 @@ import { createRateLimiter } from "../../core/middlewares/rateLimiter.middleware
 import { CandidateController } from "./candidate.controller";
 import { UpsertCandidateProfileDto } from "./candidate.dto";
 
-const resumeUploadLimiter = createRateLimiter("resume-upload", 10, 60 * 60 * 1000, "user");
+const resumeUploadLimiter = createRateLimiter(
+  "resume-upload",
+  10,
+  60 * 60 * 1000,
+  "user",
+);
 
-export default function candidateRoutes(controller: CandidateController): Router {
+export default function candidateRoutes(
+  controller: CandidateController,
+): Router {
   const router = Router();
 
   router.post(
@@ -40,7 +47,7 @@ export default function candidateRoutes(controller: CandidateController): Router
     authenticate,
     authorize("candidate"),
     resumeUploadLimiter,
-    uploadResume,
+    ...uploadResume,
     controller.uploadResume,
   );
 

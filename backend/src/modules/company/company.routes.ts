@@ -47,7 +47,7 @@ export default function companyRoutes(
     authenticate,
     authorize("company"),
     logoUploadLimiter,
-    uploadLogo,
+    ...uploadLogo,
     companyController.uploadLogo,
   );
 

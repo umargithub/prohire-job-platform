@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { config } from "../../config";
 import { logger } from "./logger";
+import { UploadFolder } from "../middlewares/upload.middleware";
 
 cloudinary.config({
   cloud_name: config.CLOUDINARY_CLOUD_NAME,
@@ -8,23 +9,21 @@ cloudinary.config({
   api_secret: config.CLOUDINARY_API_SECRET,
 });
 
-type UploadFolder = "resumes" | "logos";
 type ResourceType = "raw" | "image";
 
 export async function uploadToCloudinary(
   buffer: Buffer,
   folder: UploadFolder,
-  mimeType: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: `prohire/${folder}`,
-        resource_type: folder === "resumes" ? "raw" : "image",
-        format: folder === "resumes" ? "pdf" : undefined,
+        resource_type: folder === "logos" ? "image" : "raw",
       },
       (error, result) => {
-        if (error || !result) return reject(error ?? new Error("Upload failed"));
+        if (error || !result)
+          return reject(error ?? new Error("Upload failed"));
         resolve(result.secure_url);
       },
     );
@@ -36,14 +35,21 @@ export async function uploadToCloudinary(
 export async function deleteFromCloudinary(url: string): Promise<void> {
   try {
     const { publicId, resourceType } = extractPublicId(url);
-    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+    });
   } catch (err) {
     // Non-fatal — log and continue. A failed delete should not block the new upload.
     logger.warn({ err, url }, "Failed to delete old file from Cloudinary");
   }
 }
 
-function extractPublicId(url: string): { publicId: string; resourceType: ResourceType } {
+// https://res.cloudinary.com/demo/raw/upload/v1712345678/resumes/john-doe.pdf
+
+function extractPublicId(url: string): {
+  publicId: string;
+  resourceType: ResourceType;
+} {
   const rawMatch = url.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
   if (rawMatch) return { publicId: rawMatch[1]!, resourceType: "raw" };
 
