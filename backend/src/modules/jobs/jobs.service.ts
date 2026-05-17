@@ -1,5 +1,5 @@
 import { JobsRepository } from "./jobs.repository";
-import type { JobRow } from "../company/company.types";
+import type { JobWithCompanyRow } from "./jobs.types";
 import { PaginatedJobs } from "./jobs.types";
 import { ListJobsQueryInput } from "./jobs.dto";
 import { getOrSet } from "../../core/redis/cache";
@@ -41,9 +41,9 @@ export class JobsService {
     );
   }
 
-  async getJob(jobId: string): Promise<JobRow> {
+  async getJob(jobId: string): Promise<JobWithCompanyRow> {
     const cacheKey = `prohire:job:detail:${jobId}`;
-    return getOrSet<JobRow>(cacheKey, TTL.JOB_DETAIL, async () => {
+    return getOrSet<JobWithCompanyRow>(cacheKey, TTL.JOB_DETAIL, async () => {
       const job = await this.jobsRepository.findActiveJobById(jobId);
       if (!job) throw new NotFoundError("Job");
       return job;

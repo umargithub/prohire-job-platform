@@ -39,6 +39,16 @@ export class JobInactiveError extends AppError {
   }
 }
 
+export class ProfileRequiredError extends AppError {
+  constructor() {
+    super(
+      "You must complete your candidate profile before applying to jobs.",
+      403,
+      "PROFILE_REQUIRED",
+    );
+  }
+}
+
 export class EmailNotVerifiedError extends AppError {
   constructor() {
     super(

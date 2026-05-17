@@ -9,6 +9,9 @@ import {
   UpsertCompanyProfileDto,
   CreateJobDto,
   UpdateJobDto,
+  InviteMemberDto,
+  AcceptInviteDto,
+  TransferOwnershipDto,
 } from "./company.dto";
 
 const logoUploadLimiter = createRateLimiter("logo-upload", 10, 60 * 60 * 1000, "user");
@@ -49,6 +52,43 @@ export default function companyRoutes(
     logoUploadLimiter,
     ...uploadLogo,
     companyController.uploadLogo,
+  );
+
+  // ── Members ────────────────────────────────────────────────────────────────
+  router.get(
+    "/members",
+    authenticate,
+    authorize("company"),
+    companyController.listMembers,
+  );
+
+  router.post(
+    "/members/invite",
+    authenticate,
+    authorize("company"),
+    validate(InviteMemberDto),
+    companyController.inviteMember,
+  );
+
+  router.post(
+    "/invites/accept",
+    validate(AcceptInviteDto),
+    companyController.acceptInvite,
+  );
+
+  router.post(
+    "/transfer-ownership",
+    authenticate,
+    authorize("company"),
+    validate(TransferOwnershipDto),
+    companyController.transferOwnership,
+  );
+
+  router.delete(
+    "/members/:userId",
+    authenticate,
+    authorize("company"),
+    companyController.removeMember,
   );
 
   // ── Jobs ───────────────────────────────────────────────────────────────────

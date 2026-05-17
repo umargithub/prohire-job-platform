@@ -1,3 +1,26 @@
+export type CompanyMemberRole = "owner" | "recruiter";
+
+export interface CompanyInviteRow {
+  id: string;
+  company_id: string;
+  email: string;
+  token_hash: string;
+  expires_at: Date;
+  created_at: Date;
+}
+
+export interface CompanyMemberRow {
+  id: string;
+  company_id: string;
+  user_id: string;
+  role: CompanyMemberRole;
+  created_at: Date;
+}
+
+export interface CompanyMemberWithEmailRow extends CompanyMemberRow {
+  email: string;
+}
+
 export interface CompanyRow {
   id: string;
   owner_id: string;
@@ -9,17 +32,3 @@ export interface CompanyRow {
   updated_at: Date;
 }
 
-export interface JobRow {
-  id: string;
-  company_id: string;
-  title: string;
-  description: string;
-  location: string | null;
-  job_type: "remote" | "hybrid" | "onsite";
-  experience_level: "junior" | "mid" | "senior";
-  salary_min: string | null; // pg returns NUMERIC as string
-  salary_max: string | null;
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-}

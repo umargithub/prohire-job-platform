@@ -1,8 +1,11 @@
 import { Router } from "express";
+import { authenticate } from "../../core/middlewares/authenticate.middleware";
+import { authorize } from "../../core/middlewares/authorize.middleware";
 import { createRateLimiter } from "../../core/middlewares/rateLimiter.middleware";
 import { validateQuery } from "../../core/middlewares/validateQuery.middleware";
 import { JobsController } from "./jobs.controller";
 import { ListJobsQueryDto } from "./jobs.dto";
+import { GetApplicationsQueryDto } from "../applications/application.dto";
 
 export default function jobsRoutes(controller: JobsController): Router {
   const router = Router();
@@ -19,6 +22,14 @@ export default function jobsRoutes(controller: JobsController): Router {
     "/:id",
     browseLimit,
     controller.getJob,
+  );
+
+  router.get(
+    "/:jobId/applications",
+    authenticate,
+    authorize("company"),
+    validateQuery(GetApplicationsQueryDto),
+    controller.getJobApplications,
   );
 
   return router;

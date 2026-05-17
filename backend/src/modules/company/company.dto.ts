@@ -38,6 +38,21 @@ export const UpdateJobDto = z
     { message: "salary_max must be >= salary_min", path: ["salary_max"] },
   );
 
+export const InviteMemberDto = z.object({
+  email: z.string().email(),
+});
+
+export const AcceptInviteDto = z.object({
+  token: z.string().min(1),
+});
+
+export const TransferOwnershipDto = z.object({
+  userId: z.string().uuid(),
+});
+
 export type UpsertCompanyProfileInput = z.infer<typeof UpsertCompanyProfileDto>;
 export type CreateJobInput = z.infer<typeof CreateJobDto>;
 export type UpdateJobInput = z.infer<typeof UpdateJobDto>;
+export type InviteMemberInput = z.infer<typeof InviteMemberDto>;
+export type AcceptInviteInput = z.infer<typeof AcceptInviteDto>;
+export type TransferOwnershipInput = z.infer<typeof TransferOwnershipDto>;

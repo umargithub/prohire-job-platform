@@ -25,12 +25,20 @@ import { JobsController } from "./modules/jobs/jobs.controller";
 import { CandidateRepository } from "./modules/candidate/candidate.repository";
 import { CandidateService } from "./modules/candidate/candidate.service";
 import { CandidateController } from "./modules/candidate/candidate.controller";
+import { ApplicationRepository } from "./modules/applications/application.repository";
+import { ApplicationService } from "./modules/applications/application.service";
+import { ApplicationController } from "./modules/applications/application.controller";
+import { AdminRepository } from "./modules/admin/admin.repository";
+import { AdminService } from "./modules/admin/admin.service";
+import { AdminController } from "./modules/admin/admin.controller";
 
 import healthRoutes from "./modules/health/health.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import companyRoutes from "./modules/company/company.routes";
 import jobsRoutes from "./modules/jobs/jobs.routes";
 import candidateRoutes from "./modules/candidate/candidate.routes";
+import applicationRoutes from "./modules/applications/application.routes";
+import adminRoutes from "./modules/admin/admin.routes";
 
 const app = express();
 
@@ -87,7 +95,10 @@ container.register(
 );
 container.register(
   "companyService",
-  () => new CompanyService(container.resolve<CompanyRepository>("companyRepository")),
+  () => new CompanyService(
+    container.resolve<CompanyRepository>("companyRepository"),
+    container.resolve<EmailQueue>("emailQueue"),
+  ),
 );
 container.register(
   "companyController",
@@ -98,10 +109,6 @@ container.register(
   "jobsService",
   () => new JobsService(container.resolve<JobsRepository>("jobsRepository")),
 );
-container.register(
-  "jobsController",
-  () => new JobsController(container.resolve<JobsService>("jobsService")),
-);
 container.register("candidateRepository", () => new CandidateRepository(db));
 container.register(
   "candidateService",
@@ -111,6 +118,40 @@ container.register(
   "candidateController",
   () => new CandidateController(container.resolve<CandidateService>("candidateService")),
 );
+container.register("applicationRepository", () => new ApplicationRepository(db));
+container.register(
+  "applicationService",
+  () =>
+    new ApplicationService(
+      container.resolve<ApplicationRepository>("applicationRepository"),
+      container.resolve<JobsRepository>("jobsRepository"),
+      container.resolve<CandidateRepository>("candidateRepository"),
+      db,
+    ),
+);
+container.register(
+  "applicationController",
+  () =>
+    new ApplicationController(
+      container.resolve<ApplicationService>("applicationService"),
+    ),
+);
+container.register(
+  "jobsController",
+  () => new JobsController(
+    container.resolve<JobsService>("jobsService"),
+    container.resolve<ApplicationService>("applicationService"),
+  ),
+);
+container.register("adminRepository", () => new AdminRepository(db));
+container.register(
+  "adminService",
+  () => new AdminService(container.resolve<AdminRepository>("adminRepository")),
+);
+container.register(
+  "adminController",
+  () => new AdminController(container.resolve<AdminService>("adminService")),
+);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/health", healthRoutes);
@@ -118,6 +159,8 @@ app.use("/api/v1/auth", authRoutes(container.resolve<AuthController>("authContro
 app.use("/api/v1/company", companyRoutes(container.resolve<CompanyController>("companyController")));
 app.use("/api/v1/jobs", jobsRoutes(container.resolve<JobsController>("jobsController")));
 app.use("/api/v1/candidate", candidateRoutes(container.resolve<CandidateController>("candidateController")));
+app.use("/api/v1/applications", applicationRoutes(container.resolve<ApplicationController>("applicationController")));
+app.use("/api/v1/admin", adminRoutes(container.resolve<AdminController>("adminController")));
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, _res: Response, next: NextFunction): void => {

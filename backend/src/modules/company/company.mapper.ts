@@ -1,5 +1,17 @@
-import { CompanyRow, JobRow } from "./company.types";
-import { CompanyResponse, JobResponse } from "./company.response";
+import { CompanyRow, CompanyMemberWithEmailRow } from "./company.types";
+import { CompanyResponse, CompanyMemberResponse } from "./company.response";
+
+export function toCompanyMemberResponse(row: CompanyMemberWithEmailRow): CompanyMemberResponse {
+  return {
+    id: row.id,
+    role: row.role,
+    createdAt: row.created_at,
+    user: {
+      id: row.user_id,
+      email: row.email,
+    },
+  };
+}
 
 export function toCompanyResponse(row: CompanyRow): CompanyResponse {
   return {
@@ -8,23 +20,6 @@ export function toCompanyResponse(row: CompanyRow): CompanyResponse {
     description: row.description,
     website: row.website,
     logoUrl: row.logo_url,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-export function toJobResponse(row: JobRow): JobResponse {
-  return {
-    id: row.id,
-    companyId: row.company_id,
-    title: row.title,
-    description: row.description,
-    location: row.location,
-    jobType: row.job_type,
-    experienceLevel: row.experience_level,
-    salaryMin: row.salary_min !== null ? parseFloat(row.salary_min) : null,
-    salaryMax: row.salary_max !== null ? parseFloat(row.salary_max) : null,
-    isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

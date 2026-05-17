@@ -1,3 +1,13 @@
+export interface CompanyMemberResponse {
+  id: string;
+  role: "owner" | "recruiter";
+  createdAt: Date;
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
 export interface CompanyResponse {
   id: string;
   name: string;
@@ -8,17 +18,3 @@ export interface CompanyResponse {
   updatedAt: Date;
 }
 
-export interface JobResponse {
-  id: string;
-  companyId: string;
-  title: string;
-  description: string;
-  location: string | null;
-  jobType: "remote" | "hybrid" | "onsite";
-  experienceLevel: "junior" | "mid" | "senior";
-  salaryMin: number | null;
-  salaryMax: number | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}

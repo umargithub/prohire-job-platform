@@ -1,26 +1,12 @@
 import { Queue } from "bullmq";
 import { config } from "../../config";
+import { parseRedisUrl } from "./parseRedisUrl";
 
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
   | { type: "password-reset"; to: string; token: string }
-  | { type: "stage-changed"; to: string; stage: string; jobTitle: string };
-
-interface RedisConnectionOptions {
-  host: string;
-  port: number;
-  password?: string;
-}
-
-function parseRedisUrl(url: string): RedisConnectionOptions {
-  const parsed = new URL(url);
-  const opts: RedisConnectionOptions = {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || "6379", 10),
-  };
-  if (parsed.password) opts.password = decodeURIComponent(parsed.password);
-  return opts;
-}
+  | { type: "stage-changed"; to: string; stage: string; jobTitle: string }
+  | { type: "company-invite"; to: string; token: string; companyName: string };
 
 export class EmailQueue {
   // Queue type inferred — avoids BullMQ's bundled ioredis version conflict
@@ -65,6 +51,18 @@ export class EmailQueue {
       "password-reset",
       { type: "password-reset", to, token },
       { jobId: `password-reset:${to}` },
+    );
+  }
+
+  async enqueueCompanyInviteEmail(
+    to: string,
+    token: string,
+    companyName: string,
+  ): Promise<void> {
+    await this.queue.add(
+      "company-invite",
+      { type: "company-invite", to, token, companyName },
+      { jobId: `company-invite:${to}` },
     );
   }
 }

@@ -5,7 +5,7 @@ import { AppError } from "../errors/AppError";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
-export type UploadFolder = "resumes" | "logos";
+export type UploadFolder = "resumes" | "logos" | "avatars";
 
 export const ALLOWED_MIME_TYPES: Record<UploadFolder, string[]> = {
   resumes: [
@@ -14,6 +14,7 @@ export const ALLOWED_MIME_TYPES: Record<UploadFolder, string[]> = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ],
   logos: ["image/jpeg", "image/png", "image/webp"],
+  avatars: ["image/jpeg", "image/png", "image/webp"],
 };
 
 // file-type cannot reliably detect doc/docx: .docx is a ZIP container (detected as
@@ -22,6 +23,7 @@ export const ALLOWED_MIME_TYPES: Record<UploadFolder, string[]> = {
 const MAGIC_BYTE_RELIABLE: Record<UploadFolder, string[]> = {
   resumes: ["application/pdf"],
   logos: ["image/jpeg", "image/png", "image/webp"],
+  avatars: ["image/jpeg", "image/png", "image/webp"],
 };
 
 function makeFilter(folder: UploadFolder) {
@@ -103,3 +105,4 @@ function makeUploadMiddleware(
 
 export const uploadResume = makeUploadMiddleware("resumes", "resume");
 export const uploadLogo = makeUploadMiddleware("logos", "logo");
+export const uploadAvatar = makeUploadMiddleware("avatars", "avatar");

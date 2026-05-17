@@ -54,4 +54,16 @@ export class CandidateController {
         .json({ success: true, data: toCandidateProfileResponse(row) });
     },
   );
+
+  uploadAvatar = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const row = await this.candidateService.uploadAvatar(
+        req.user!.userId,
+        req.file!,
+      );
+      res
+        .status(200)
+        .json({ success: true, data: toCandidateProfileResponse(row) });
+    },
+  );
 }

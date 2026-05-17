@@ -64,9 +64,12 @@ Deploy   → After frontend is complete
 ### Architecture
 
 - **Controllers are thin.** A controller method does exactly three things: call `asyncHandler`, extract validated DTO from `req`, call service, return response.
+- **Routes call their own module's controller.** `GET /jobs/:jobId/applications` is under the jobs URL space → `JobsController` handles it, even though the data is in the applications module. A controller is the HTTP handler for its own module only.
+- **Services are the reusable layer.** A controller may call a service from any module. `JobsController` may call `ApplicationService`. Services are not coupled to HTTP.
 - **Services own all business logic.** No SQL in services — delegate to repositories.
 - **Repositories own all SQL.** No business decisions in repositories.
 - **No cross-module imports between repositories.** Services may call other services; repositories may not call other repositories.
+- **Types, mappers, and responses belong to the module that owns the entity.** `JobRow`, `JobResponse`, `toJobResponse` all live in the `jobs` module. No other module redefines them — it imports them.
 
 ### Naming Conventions
 
@@ -272,6 +275,16 @@ export class ForbiddenError extends AppError {
     super(message, 403, "FORBIDDEN");
   }
 }
+
+export class ProfileRequiredError extends AppError {
+  constructor() {
+    super(
+      "You must complete your candidate profile before applying to jobs.",
+      403,
+      "PROFILE_REQUIRED",
+    );
+  }
+}
 ```
 
 ### Global error handler
@@ -384,27 +397,35 @@ function useResendCooldown(cooldownMs = 60_000) {
 
 ### Application service (transactional)
 
+`applyToJob` checks candidate profile existence **before** opening the transaction. If no profile exists it throws `ProfileRequiredError` (403). This enforces the Naukri-style rule: a candidate must complete their profile before applying. It also means `ApplicationWithCandidateRow.full_name` is `string` (not `string | null`) and the repository JOIN is `INNER JOIN candidate_profiles`.
+
 ```typescript
 // src/modules/applications/application.service.ts
 import { DatabaseClient } from "../../core/database/db";
 import { ApplicationRepository } from "./application.repository";
-import { JobRepository } from "../jobs/job.repository";
+import { JobsRepository } from "../jobs/jobs.repository";
+import { CandidateRepository } from "../candidate/candidate.repository";
 import {
   DuplicateApplicationError,
   JobInactiveError,
+  ProfileRequiredError,
   ConflictError,
 } from "../../core/errors/AppError";
 
 export class ApplicationService {
   constructor(
     private readonly applicationRepository: ApplicationRepository,
-    private readonly jobRepository: JobRepository,
+    private readonly jobsRepository: JobsRepository,
+    private readonly candidateRepository: CandidateRepository,
     private readonly db: DatabaseClient,
   ) {}
 
   async applyToJob(candidateId: string, jobId: string, coverLetter?: string) {
+    const profile = await this.candidateRepository.findProfileByUserId(candidateId);
+    if (!profile) throw new ProfileRequiredError();
+
     return this.db.transaction(async (tx) => {
-      const job = await this.jobRepository.findActiveById(jobId, tx);
+      const job = await this.jobsRepository.findActiveJobByIdTx(jobId, tx);
       if (!job) throw new JobInactiveError();
 
       try {
@@ -452,11 +473,13 @@ function isUniqueConstraintError(err: unknown): boolean {
 
 ### Optimistic locking repository method
 
+Authorization checks use `company_members` (not `companies.owner_id`) so that all team members (owner + recruiters) can update stage.
+
 ```typescript
 // src/modules/applications/application.repository.ts (excerpt)
 async updateStageWithVersion(
   id: string,
-  companyOwnerId: string,
+  userId: string,
   stage: string,
   version: number
 ): Promise<ApplicationRow | null> {
@@ -468,14 +491,53 @@ async updateStageWithVersion(
        AND a.version = $3
        AND a.job_id = j.id
        AND j.company_id IN (
-         SELECT id FROM companies WHERE owner_id = $4
+         SELECT company_id FROM company_members WHERE user_id = $4
        )
      RETURNING a.*`,
-    [stage, id, version, companyOwnerId]
+    [stage, id, version, userId]
   );
   return result.rows[0] ?? null;
 }
 ```
+
+### Company members (multi-seat)
+
+Companies support multiple team members. The `company_members` table links users to a company with a role of `owner` or `recruiter`. `UNIQUE` on `user_id` enforces one membership per user. A partial unique index (`WHERE role = 'owner'`) enforces exactly one owner per company at the database level.
+
+**Key rules:**
+- Owner is seeded into `company_members` atomically when company is created (`createCompanyWithOwner` uses `db.transaction`)
+- `resolveCompanyAsMember(userId)` — queries `company_members WHERE user_id = userId`; used for job CRUD and application access; allows owner + recruiter
+- `resolveCompanyAsOwner(userId)` — queries `company_members WHERE user_id = userId AND role = 'owner'`; used for profile updates, logo upload, member management, ownership transfer; throws `ForbiddenError` if not owner
+- Only users with `role = 'company'` in the `users` table can be invited as members
+- Owner cannot be removed; `DELETE /company/members/:userId` only removes rows where `role = 'recruiter'`
+- All application and job repository authorization queries use `company_members`, not `companies.owner_id`
+
+**Invite flow:**
+1. Owner calls `POST /company/members/invite` with `{ email }` — generates a 32-byte random token, stores the hash in `company_invites` with a 48-hour expiry, enqueues `company-invite` email via BullMQ
+2. Re-inviting the same email deletes the existing invite first (resend support), then creates a new one
+3. Invitee clicks the link and calls `POST /company/invites/accept` with `{ token }` — server validates token, looks up the user by email, atomically inserts into `company_members` and deletes the invite
+
+**Ownership transfer:**
+- `POST /company/transfer-ownership` with `{ userId }` — owner only
+- Atomic transaction: sets current owner → `recruiter`, sets target user → `owner`, updates `companies.owner_id`
+- Target user must already be a `recruiter` in `company_members`; returns false otherwise
+- Invalidates the company profile cache on success
+
+**Endpoints:**
+- `GET /api/v1/company/members` — any member
+- `POST /api/v1/company/members/invite` — owner only, body: `{ email: string }`
+- `POST /api/v1/company/invites/accept` — public (no auth), body: `{ token: string }`
+- `POST /api/v1/company/transfer-ownership` — owner only, body: `{ userId: string }`
+- `DELETE /api/v1/company/members/:userId` — owner only (removes recruiters only)
+
+### Candidate avatar upload
+
+`avatar_url TEXT` column added to `candidate_profiles` via migration `009`.
+
+- Upload endpoint: `PATCH /api/v1/candidate/profile/avatar` — multipart, field name `avatar`, accepts `image/jpeg | image/png | image/webp`
+- Rate limited: 10 uploads per hour per user
+- Old avatar deleted from Cloudinary on replacement (same pattern as resume)
+- `avatar_url` is returned in all candidate profile responses and in `ApplicationWithCandidateRow` (recruiter applicant list)
 
 ### BullMQ email queue
 
@@ -487,6 +549,7 @@ import { redis } from "../redis/redis";
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
   | { type: "password-reset"; to: string; token: string }
+  | { type: "company-invite"; to: string; token: string; companyName: string }
   | { type: "stage-changed"; to: string; stage: string; jobTitle: string };
 
 export class EmailQueue {
@@ -509,6 +572,18 @@ export class EmailQueue {
       "verify-email",
       { type: "verify-email", to, token },
       { jobId: `verify-email:${to}` }, // idempotent: deduplicates by email
+    );
+  }
+
+  async enqueueCompanyInviteEmail(
+    to: string,
+    token: string,
+    companyName: string,
+  ): Promise<void> {
+    await this.queue.add(
+      "company-invite",
+      { type: "company-invite", to, token, companyName },
+      { jobId: `company-invite:${to}` }, // idempotent: deduplicates by email
     );
   }
 
@@ -553,9 +628,10 @@ export async function invalidate(keyPattern: string): Promise<void> {
 
 // src/core/redis/ttl.constants.ts
 export const TTL = {
-  JOB_LIST: 300, // 5 minutes
-  JOB_DETAIL: 600, // 10 minutes
-  COMPANY_JOBS: 300, // 5 minutes
+  JOB_LIST: 300,      // 5 minutes
+  JOB_DETAIL: 600,    // 10 minutes
+  COMPANY_JOBS: 300,  // 5 minutes
+  COMPANY_PROFILE: 300, // 5 minutes — keyed by companyId, shared across all members
 } as const;
 ```
 
@@ -803,3 +879,11 @@ Before marking a phase done:
 - Do not skip the `version` check on stage updates — the optimistic lock must always enforce it.
 - Do not use `any` as a temporary shortcut — define the type properly from the start.
 - Do not send emails synchronously — always delegate to BullMQ.
+- Do not use `companies.owner_id` for application or job authorization — use `company_members` so recruiters have access too.
+- Do not allow a candidate to apply without a profile — `applyToJob` must check `findProfileByUserId` before opening the transaction.
+- Do not use `LEFT JOIN candidate_profiles` in applicant queries — it must be `INNER JOIN` because profile existence is enforced at apply time.
+- Do not call another module's controller from a route — routes call their own module's controller only. Cross-module work goes through services.
+- Do not define `JobRow`, `JobResponse`, or `toJobResponse` outside the `jobs` module — types, responses, and mappers belong to the module that owns the entity. Other modules import from there.
+- Do not cache company profile by `userId` — use `companyId` as the cache key so all members of the same company share one cache entry.
+- Do not register a DI dependency before its own dependencies are registered — the container calls the factory immediately on `register`, so registration order matters. Register leaves before roots (e.g. `jobsController` must come after `applicationService` since it depends on it).
+- Do not insert a second owner into `company_members` for the same company — the partial unique index (`WHERE role = 'owner'`) will reject it at the DB level. Use `transferOwnership` instead.

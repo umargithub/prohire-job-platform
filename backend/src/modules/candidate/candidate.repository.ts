@@ -10,10 +10,10 @@ export class CandidateRepository {
     input: UpsertCandidateProfileInput,
   ): Promise<CandidateProfileRow> {
     const result = await this.db.query<CandidateProfileRow>(
-      `INSERT INTO candidate_profiles (user_id, full_name, bio, resume_url)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO candidate_profiles (user_id, full_name, bio, resume_url, avatar_url)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [userId, input.full_name, input.bio ?? null, input.resume_url ?? null],
+      [userId, input.full_name, input.bio ?? null, input.resume_url ?? null, input.avatar_url ?? null],
     );
     return result.rows[0]!;
   }
@@ -48,10 +48,24 @@ export class CandidateRepository {
   ): Promise<CandidateProfileRow | null> {
     const result = await this.db.query<CandidateProfileRow>(
       `UPDATE candidate_profiles
-       SET full_name = $1, bio = $2, resume_url = $3, updated_at = NOW()
-       WHERE user_id = $4
+       SET full_name = $1, bio = $2, resume_url = $3, avatar_url = $4, updated_at = NOW()
+       WHERE user_id = $5
        RETURNING *`,
-      [input.full_name, input.bio ?? null, input.resume_url ?? null, userId],
+      [input.full_name, input.bio ?? null, input.resume_url ?? null, input.avatar_url ?? null, userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateAvatarUrl(
+    userId: string,
+    avatarUrl: string,
+  ): Promise<CandidateProfileRow | null> {
+    const result = await this.db.query<CandidateProfileRow>(
+      `UPDATE candidate_profiles
+       SET avatar_url = $1, updated_at = NOW()
+       WHERE user_id = $2
+       RETURNING *`,
+      [avatarUrl, userId],
     );
     return result.rows[0] ?? null;
   }

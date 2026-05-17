@@ -66,4 +66,26 @@ export class CandidateService {
     await invalidate(`prohire:candidate:profile:${userId}`);
     return profile;
   }
+
+  async uploadAvatar(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<CandidateProfileRow> {
+    const existing = await this.candidateRepository.findProfileByUserId(userId);
+    if (!existing) throw new NotFoundError("Candidate profile");
+
+    const avatarUrl = await uploadToCloudinary(file.buffer, "avatars");
+    const profile = await this.candidateRepository.updateAvatarUrl(
+      userId,
+      avatarUrl,
+    );
+    if (!profile) throw new NotFoundError("Candidate profile");
+
+    if (existing.avatar_url) {
+      await deleteFromCloudinary(existing.avatar_url);
+    }
+
+    await invalidate(`prohire:candidate:profile:${userId}`);
+    return profile;
+  }
 }

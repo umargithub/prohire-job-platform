@@ -7,6 +7,7 @@ export function toCandidateProfileResponse(row: CandidateProfileRow): CandidateP
     fullName: row.full_name,
     bio: row.bio,
     resumeUrl: row.resume_url,
+    avatarUrl: row.avatar_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

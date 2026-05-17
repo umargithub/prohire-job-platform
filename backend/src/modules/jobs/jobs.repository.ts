@@ -1,5 +1,6 @@
+import { PoolClient } from "pg";
 import { DatabaseClient } from "../../core/database/db";
-import type { JobRow } from "../company/company.types";
+import type { JobRow, JobWithCompanyRow } from "./jobs.types";
 import { ListJobsQueryInput } from "./jobs.dto";
 import { FindJobsResult } from "./jobs.types";
 
@@ -45,10 +46,12 @@ export class JobsRepository {
     params.push(offset);
     const offsetParam = params.length;
 
-    const dataResult = await this.db.query<JobRow>(
-      `SELECT * FROM jobs
+    const dataResult = await this.db.query<JobWithCompanyRow>(
+      `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
+       FROM jobs j
+       JOIN companies c ON c.id = j.company_id
        WHERE ${where}
-       ORDER BY created_at DESC
+       ORDER BY j.created_at DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
       params,
     );
@@ -56,8 +59,19 @@ export class JobsRepository {
     return { jobs: dataResult.rows, total };
   }
 
-  async findActiveJobById(id: string): Promise<JobRow | null> {
-    const result = await this.db.query<JobRow>(
+  async findActiveJobById(id: string): Promise<JobWithCompanyRow | null> {
+    const result = await this.db.query<JobWithCompanyRow>(
+      `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
+       FROM jobs j
+       JOIN companies c ON c.id = j.company_id
+       WHERE j.id = $1 AND j.is_active = TRUE`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findActiveJobByIdTx(id: string, tx: PoolClient): Promise<JobRow | null> {
+    const result = await tx.query<JobRow>(
       "SELECT * FROM jobs WHERE id = $1 AND is_active = TRUE",
       [id],
     );

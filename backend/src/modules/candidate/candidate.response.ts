@@ -3,6 +3,7 @@ export interface CandidateProfileResponse {
   fullName: string;
   bio: string | null;
   resumeUrl: string | null;
+  avatarUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

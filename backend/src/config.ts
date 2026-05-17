@@ -22,4 +22,11 @@ export const config = {
   CLOUDINARY_CLOUD_NAME: requireEnv("CLOUDINARY_CLOUD_NAME"),
   CLOUDINARY_API_KEY: requireEnv("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: requireEnv("CLOUDINARY_API_SECRET"),
+
+  // SMTP — optional; if unset, emails are logged to console (dev mode)
+  SMTP_HOST: process.env["SMTP_HOST"],
+  SMTP_PORT: parseInt(process.env["SMTP_PORT"] ?? "587", 10),
+  SMTP_USER: process.env["SMTP_USER"],
+  SMTP_PASS: process.env["SMTP_PASS"],
+  EMAIL_FROM: process.env["EMAIL_FROM"] ?? "noreply@prohire.dev",
 };
