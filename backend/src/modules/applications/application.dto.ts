@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { APPLICATION_STAGES } from "./application.types";
+import { EMAIL_STAGES } from "./application.types";
 
 export const ApplyToJobDto = z.object({
   job_id: z.string().uuid(),
@@ -7,7 +7,7 @@ export const ApplyToJobDto = z.object({
 });
 
 export const UpdateStageDto = z.object({
-  stage: z.enum(APPLICATION_STAGES),
+  stage: z.enum(EMAIL_STAGES),
   version: z.number().int().positive(),
 });
 

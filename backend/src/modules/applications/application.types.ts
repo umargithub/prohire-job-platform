@@ -8,6 +8,9 @@ export const APPLICATION_STAGES = [
 
 export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
 
+export const EMAIL_STAGES = ["reviewed", "interview", "offered", "rejected"] as const;
+export type EmailStage = (typeof EMAIL_STAGES)[number];
+
 export interface ApplicationRow {
   id: string;
   job_id: string;

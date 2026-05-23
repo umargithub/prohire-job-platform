@@ -1,26 +1,30 @@
 import { config } from "../../../config";
-import { ApplicationStage } from "../../../modules/applications/application.types";
+import { EmailStage } from "../../../modules/applications/application.types";
 
-const STAGE_LABELS: Record<string, string> = {
+const STAGE_LABELS: Record<EmailStage, string> = {
   reviewed: "Your application has been reviewed",
   interview: "You've been selected for an interview",
   offered: "Congratulations — you've received an offer",
   rejected: "Application update",
 };
 
-const STAGE_MESSAGES: Record<string, string> = {
-  reviewed: "Your application has been reviewed by the hiring team. We'll be in touch with next steps.",
-  interview: "Great news! The hiring team would like to schedule an interview with you. They will reach out to you shortly with details.",
-  offered: "Congratulations! After careful consideration, the company has decided to extend you an offer. They will be in touch with the details.",
-  rejected: "Thank you for your interest. After careful consideration, the company has decided to move forward with other candidates. We encourage you to keep applying.",
+const STAGE_MESSAGES: Record<EmailStage, string> = {
+  reviewed:
+    "Your application has been reviewed by the hiring team. We'll be in touch with next steps.",
+  interview:
+    "Great news! The hiring team would like to schedule an interview with you. They will reach out to you shortly with details.",
+  offered:
+    "Congratulations! After careful consideration, the company has decided to extend you an offer. They will be in touch with the details.",
+  rejected:
+    "Thank you for your interest. After careful consideration, the company has decided to move forward with other candidates. We encourage you to keep applying.",
 };
 
 export function stageChangedTemplate(
-  stage: ApplicationStage,
+  stage: EmailStage,
   jobTitle: string,
 ): { subject: string; html: string } {
-  const label = STAGE_LABELS[stage] ?? "Your application status has been updated";
-  const message = STAGE_MESSAGES[stage] ?? `Your application status has been updated to: ${stage}.`;
+  const label = STAGE_LABELS[stage];
+  const message = STAGE_MESSAGES[stage];
 
   return {
     subject: `${label} — ${jobTitle}`,

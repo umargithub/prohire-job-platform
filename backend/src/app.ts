@@ -127,6 +127,7 @@ container.register(
       container.resolve<ApplicationRepository>("applicationRepository"),
       container.resolve<JobsRepository>("jobsRepository"),
       container.resolve<CandidateRepository>("candidateRepository"),
+      container.resolve<EmailQueue>("emailQueue"),
     ),
 );
 container.register(

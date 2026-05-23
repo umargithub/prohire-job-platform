@@ -1,10 +1,11 @@
 import { JobsRepository } from "../jobs/jobs.repository";
 import { ApplicationRepository } from "./application.repository";
 import { CandidateRepository } from "../candidate/candidate.repository";
+import { EmailQueue } from "../../core/queue/email.queue";
 import {
   ApplicationRow,
   ApplicationDetailRow,
-  ApplicationStage,
+  EmailStage,
   ApplicationWithCandidateRow,
   ApplicationWithJobRow,
   PaginatedApplications,
@@ -23,6 +24,7 @@ export class ApplicationService {
     private readonly applicationRepository: ApplicationRepository,
     private readonly jobsRepository: JobsRepository,
     private readonly candidateRepository: CandidateRepository,
+    private readonly emailQueue: EmailQueue,
   ) {}
 
   async applyToJob(
@@ -93,7 +95,7 @@ export class ApplicationService {
   async updateStage(
     applicationId: string,
     ownerId: string,
-    stage: ApplicationStage,
+    stage: EmailStage,
     version: number,
   ): Promise<ApplicationRow> {
     const exists = await this.applicationRepository.existsForOwner(
@@ -112,6 +114,12 @@ export class ApplicationService {
       throw new ConflictError(
         "Application was modified by another request. Please refresh and try again.",
       );
+
+    const detail = await this.applicationRepository.findById(applicationId, ownerId);
+    if (detail) {
+      await this.emailQueue.enqueueStageChangedEmail(detail.candidate_email, stage, detail.job_title);
+    }
+
     return result;
   }
 }
