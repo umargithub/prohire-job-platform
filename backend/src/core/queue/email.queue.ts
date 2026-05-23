@@ -1,11 +1,12 @@
 import { Queue } from "bullmq";
 import { config } from "../../config";
 import { parseRedisUrl } from "./parseRedisUrl";
+import { ApplicationStage } from "../../modules/applications/application.types";
 
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
   | { type: "password-reset"; to: string; token: string }
-  | { type: "stage-changed"; to: string; stage: string; jobTitle: string }
+  | { type: "stage-changed"; to: string; stage: ApplicationStage; jobTitle: string }
   | { type: "company-invite"; to: string; token: string; companyName: string };
 
 export class EmailQueue {
@@ -36,7 +37,7 @@ export class EmailQueue {
 
   async enqueueStageChangedEmail(
     to: string,
-    stage: string,
+    stage: ApplicationStage,
     jobTitle: string,
   ): Promise<void> {
     await this.queue.add(

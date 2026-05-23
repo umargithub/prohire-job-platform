@@ -1,4 +1,5 @@
 import { config } from "../../../config";
+import { ApplicationStage } from "../../../modules/applications/application.types";
 
 const STAGE_LABELS: Record<string, string> = {
   reviewed: "Your application has been reviewed",
@@ -15,7 +16,7 @@ const STAGE_MESSAGES: Record<string, string> = {
 };
 
 export function stageChangedTemplate(
-  stage: string,
+  stage: ApplicationStage,
   jobTitle: string,
 ): { subject: string; html: string } {
   const label = STAGE_LABELS[stage] ?? "Your application status has been updated";
