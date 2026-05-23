@@ -9,6 +9,7 @@ import {
 import { generateAccessToken } from "../../shared/utils/jwt.utils";
 import { hashToken, generateToken } from "../../shared/utils/crypto.utils";
 import { EmailQueue } from "../../core/queue/email.queue";
+import { DatabaseClient } from "../../core/database/db";
 import {
   AppError,
   EmailNotVerifiedError,
@@ -24,49 +25,50 @@ export class AuthService {
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly emailQueue: EmailQueue,
+    private readonly db: DatabaseClient,
   ) {}
 
   async registerCandidate(input: RegisterInput): Promise<{ message: string }> {
     const existing = await this.authRepository.findByEmail(input.email);
-    if (existing) {
-      throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
-    }
+    if (existing) throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const rawToken = generateToken();
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
-    const user = await this.authRepository.createUserWithVerificationToken({
-      email: input.email,
-      passwordHash,
-      role: "candidate",
-      tokenHash,
-      expiresAt,
-    });
-    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
 
+    const user = await this.db.transaction(async (tx) => {
+      const u = await this.authRepository.createUser(
+        { email: input.email, passwordHash, role: "candidate" },
+        tx,
+      );
+      await this.authRepository.saveVerificationToken(u.id, tokenHash, expiresAt, tx);
+      return u;
+    });
+
+    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
     return { message: "Registration successful. Please verify your email." };
   }
 
   async registerCompany(input: RegisterInput): Promise<{ message: string }> {
     const existing = await this.authRepository.findByEmail(input.email);
-    if (existing) {
-      throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
-    }
+    if (existing) throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const rawToken = generateToken();
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
-    const user = await this.authRepository.createUserWithVerificationToken({
-      email: input.email,
-      passwordHash,
-      role: "company",
-      tokenHash,
-      expiresAt,
-    });
-    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
 
+    const user = await this.db.transaction(async (tx) => {
+      const u = await this.authRepository.createUser(
+        { email: input.email, passwordHash, role: "company" },
+        tx,
+      );
+      await this.authRepository.saveVerificationToken(u.id, tokenHash, expiresAt, tx);
+      return u;
+    });
+
+    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
     return { message: "Registration successful. Please verify your email." };
   }
 

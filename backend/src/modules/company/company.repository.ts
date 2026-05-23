@@ -11,14 +11,6 @@ import {
 export class CompanyRepository {
   constructor(private readonly db: DatabaseClient) {}
 
-  async findCompanyByOwnerId(ownerId: string): Promise<CompanyRow | null> {
-    const result = await this.db.query<CompanyRow>(
-      "SELECT * FROM companies WHERE owner_id = $1",
-      [ownerId],
-    );
-    return result.rows[0] ?? null;
-  }
-
   async createCompanyWithOwner(
     ownerId: string,
     input: UpsertCompanyProfileInput,

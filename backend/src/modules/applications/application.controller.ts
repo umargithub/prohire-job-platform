@@ -23,7 +23,9 @@ export class ApplicationController {
       job_id,
       cover_letter,
     );
-    res.status(201).json({ success: true, data: toApplicationResponse(application) });
+    res
+      .status(201)
+      .json({ success: true, data: toApplicationResponse(application) });
   });
 
   getMyApplications = asyncHandler(
@@ -52,7 +54,10 @@ export class ApplicationController {
         applicationId,
         userId,
       );
-      res.status(200).json({ success: true, data: toApplicationDetailResponse(application) });
+      res.status(200).json({
+        success: true,
+        data: toApplicationDetailResponse(application),
+      });
     },
   );
 
@@ -67,7 +72,9 @@ export class ApplicationController {
         stage,
         version,
       );
-      res.status(200).json({ success: true, data: toApplicationResponse(application) });
+      res
+        .status(200)
+        .json({ success: true, data: toApplicationResponse(application) });
     },
   );
 }

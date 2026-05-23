@@ -1,3 +1,4 @@
+import { PoolClient } from "pg";
 import { DatabaseClient } from "../../core/database/db";
 import { UserRow, TokenRow, RefreshTokenRow } from "./auth.types";
 
@@ -20,12 +21,16 @@ export class AuthRepository {
     return result.rows[0] ?? null;
   }
 
-  async createUser(input: {
-    email: string;
-    passwordHash: string;
-    role: "candidate" | "company" | "admin";
-  }): Promise<UserRow> {
-    const result = await this.db.query<UserRow>(
+  async createUser(
+    input: {
+      email: string;
+      passwordHash: string;
+      role: "candidate" | "company" | "admin";
+    },
+    tx?: PoolClient,
+  ): Promise<UserRow> {
+    const client = tx ?? this.db;
+    const result = await client.query<UserRow>(
       `INSERT INTO users (email, password_hash, role)
        VALUES ($1, $2, $3)
        RETURNING *`,
@@ -48,36 +53,14 @@ export class AuthRepository {
     );
   }
 
-  async createUserWithVerificationToken(input: {
-    email: string;
-    passwordHash: string;
-    role: "candidate" | "company" | "admin";
-    tokenHash: string;
-    expiresAt: Date;
-  }): Promise<UserRow> {
-    return this.db.transaction(async (client) => {
-      const userResult = await client.query<UserRow>(
-        `INSERT INTO users (email, password_hash, role)
-         VALUES ($1, $2, $3)
-         RETURNING *`,
-        [input.email, input.passwordHash, input.role],
-      );
-      const user = userResult.rows[0]!;
-      await client.query(
-        `INSERT INTO verification_tokens (user_id, token_hash, expires_at)
-         VALUES ($1, $2, $3)`,
-        [user.id, input.tokenHash, input.expiresAt],
-      );
-      return user;
-    });
-  }
-
   async saveVerificationToken(
     userId: string,
     tokenHash: string,
     expiresAt: Date,
+    tx?: PoolClient,
   ): Promise<void> {
-    await this.db.query(
+    const client = tx ?? this.db;
+    await client.query(
       `INSERT INTO verification_tokens (user_id, token_hash, expires_at)
        VALUES ($1, $2, $3)`,
       [userId, tokenHash, expiresAt],

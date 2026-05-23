@@ -83,6 +83,7 @@ container.register(
     new AuthService(
       container.resolve<AuthRepository>("authRepository"),
       container.resolve<EmailQueue>("emailQueue"),
+      db,
     ),
 );
 container.register(
@@ -126,7 +127,6 @@ container.register(
       container.resolve<ApplicationRepository>("applicationRepository"),
       container.resolve<JobsRepository>("jobsRepository"),
       container.resolve<CandidateRepository>("candidateRepository"),
-      db,
     ),
 );
 container.register(

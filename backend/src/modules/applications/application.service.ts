@@ -1,4 +1,3 @@
-import { DatabaseClient } from "../../core/database/db";
 import { JobsRepository } from "../jobs/jobs.repository";
 import { ApplicationRepository } from "./application.repository";
 import { CandidateRepository } from "../candidate/candidate.repository";
@@ -24,7 +23,6 @@ export class ApplicationService {
     private readonly applicationRepository: ApplicationRepository,
     private readonly jobsRepository: JobsRepository,
     private readonly candidateRepository: CandidateRepository,
-    private readonly db: DatabaseClient,
   ) {}
 
   async applyToJob(
@@ -32,23 +30,23 @@ export class ApplicationService {
     jobId: string,
     coverLetter?: string,
   ): Promise<ApplicationRow> {
-    const profile = await this.candidateRepository.findProfileByUserId(candidateId);
+    const profile =
+      await this.candidateRepository.findProfileByUserId(candidateId);
     if (!profile) throw new ProfileRequiredError();
 
-    return this.db.transaction(async (tx) => {
-      const job = await this.jobsRepository.findActiveJobByIdTx(jobId, tx);
-      if (!job) throw new JobInactiveError();
+    const job = await this.jobsRepository.findActiveJobById(jobId);
+    if (!job) throw new JobInactiveError();
 
-      try {
-        return await this.applicationRepository.create(
-          { jobId, candidateId, coverLetter },
-          tx,
-        );
-      } catch (err: unknown) {
-        if (isUniqueConstraintError(err)) throw new DuplicateApplicationError();
-        throw err;
-      }
-    });
+    try {
+      return await this.applicationRepository.create({
+        jobId,
+        candidateId,
+        coverLetter,
+      });
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) throw new DuplicateApplicationError();
+      throw err;
+    }
   }
 
   async getMyApplications(
@@ -57,7 +55,11 @@ export class ApplicationService {
   ): Promise<PaginatedApplications<ApplicationWithJobRow>> {
     const { page, limit } = filters;
     const { applications, total } =
-      await this.applicationRepository.findByCandidate(candidateId, page, limit);
+      await this.applicationRepository.findByCandidate(
+        candidateId,
+        page,
+        limit,
+      );
     return { applications, total, page, limit };
   }
 
@@ -80,7 +82,10 @@ export class ApplicationService {
     applicationId: string,
     userId: string,
   ): Promise<ApplicationDetailRow> {
-    const application = await this.applicationRepository.findById(applicationId, userId);
+    const application = await this.applicationRepository.findById(
+      applicationId,
+      userId,
+    );
     if (!application) throw new NotFoundError("Application");
     return application;
   }
@@ -91,6 +96,12 @@ export class ApplicationService {
     stage: ApplicationStage,
     version: number,
   ): Promise<ApplicationRow> {
+    const exists = await this.applicationRepository.existsForOwner(
+      applicationId,
+      ownerId,
+    );
+    if (!exists) throw new NotFoundError("Application");
+
     const result = await this.applicationRepository.updateStageWithVersion(
       applicationId,
       ownerId,

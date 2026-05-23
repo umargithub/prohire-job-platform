@@ -36,16 +36,16 @@ DocsExplorer uses Context7 as primary source and falls back to web search automa
 Follow the roadmap in strict order. Never scaffold the next phase until the current deliverable is confirmed working.
 
 ```
-Phase 1  → Project skeleton + Docker
-Phase 2  → Database schema + migrations
-Phase 3  → Authentication system
-Phase 4  → Company job management (CRUD + cache)
-Phase 5  → Candidate job browsing (filters + rate limit) + candidate profile (create/get/update)
-Phase 6  → Application system (transactional)
-Phase 7  → Optimistic locking for stage transitions
-Phase 8  → Background jobs (BullMQ)
-Phase 9  → Admin module
-Phase 10 → Production hardening
+Phase 1  ✅ Project skeleton + Docker
+Phase 2  ✅ Database schema + migrations
+Phase 3  ✅ Authentication system
+Phase 4  ✅ Company job management (CRUD + cache)
+Phase 5  ✅ Candidate job browsing (filters + rate limit) + candidate profile (create/get/update)
+Phase 6  ✅ Application system
+Phase 7  ✅ Optimistic locking for stage transitions
+Phase 8  ✅ Background jobs (BullMQ)
+Phase 9  ✅ Admin module
+Phase 10 → Production hardening  ← NEXT
 Frontend → After backend is complete and tested
 Deploy   → After frontend is complete
 ```
@@ -98,7 +98,7 @@ Deploy   → After frontend is complete
 ### SQL & Database
 
 - All queries use parameterised statements. No string interpolation in SQL.
-- Use database transactions for: job application creation, any multi-step write.
+- Use database transactions for: any multi-step write where partial failure must be prevented (e.g. user + verification token creation, company + owner member row).
 - All migrations are numbered sequentially: `001_create_users.sql`, `002_create_companies.sql`, etc.
 - Never drop a column in a migration; add a new column and migrate data.
 
@@ -160,6 +160,7 @@ container.register(
     new AuthService(
       container.resolve("authRepository"),
       container.resolve("emailQueue"),
+      db, // owns transaction boundary for user + verification token creation
     ),
 );
 
@@ -329,7 +330,9 @@ export const globalErrorHandler = (
 
 ### Auth service — registration (atomic)
 
-Registration creates a user and their verification token **atomically** via `AuthRepository.createUserWithVerificationToken`, which opens a single `db.transaction` internally. The email is enqueued only after the transaction commits. This prevents the orphaned-user bug (user row exists but no verification token) that would occur if the server crashed between two separate DB calls.
+Registration creates a user and their verification token **atomically**. The email is enqueued only after the transaction commits. This prevents the orphaned-user bug (user row exists but no verification token) if the server crashes between two separate DB calls.
+
+Transaction ownership lives in `AuthService` — the service calls `this.db.transaction` and passes the `PoolClient` (`tx`) down to `createUser` and `saveVerificationToken`, both of which accept an optional `tx?: PoolClient`.
 
 ```typescript
 // Registration pattern — both registerCandidate and registerCompany follow this
@@ -337,17 +340,20 @@ const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 const rawToken = generateToken();
 const tokenHash = hashToken(rawToken);
 const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
-const user = await this.authRepository.createUserWithVerificationToken({
-  email: input.email,
-  passwordHash,
-  role: "candidate", // or "company"
-  tokenHash,
-  expiresAt,
+
+const user = await this.db.transaction(async (tx) => {
+  const u = await this.authRepository.createUser(
+    { email: input.email, passwordHash, role: "candidate" }, // or "company"
+    tx,
+  );
+  await this.authRepository.saveVerificationToken(u.id, tokenHash, expiresAt, tx);
+  return u;
 });
+
 await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
 ```
 
-The repository method owns the transaction — the service never touches `db` directly.
+`AuthService` receives `db: DatabaseClient` as its third constructor argument and uses it only for transaction boundaries — never for direct queries.
 
 ### Resend verification endpoint
 
@@ -395,13 +401,14 @@ function useResendCooldown(cooldownMs = 60_000) {
 }
 ```
 
-### Application service (transactional)
+### Application service
 
-`applyToJob` checks candidate profile existence **before** opening the transaction. If no profile exists it throws `ProfileRequiredError` (403). This enforces the Naukri-style rule: a candidate must complete their profile before applying. It also means `ApplicationWithCandidateRow.full_name` is `string` (not `string | null`) and the repository JOIN is `INNER JOIN candidate_profiles`.
+`applyToJob` checks candidate profile existence first — if no profile exists it throws `ProfileRequiredError` (403). This enforces the rule: a candidate must complete their profile before applying. It also means `ApplicationWithCandidateRow.full_name` is `string` (not `string | null`) and the repository JOIN is `INNER JOIN candidate_profiles`.
+
+No transaction is used for `applyToJob`. A plain SELECT + INSERT is sufficient — a `SELECT` inside a transaction without `FOR UPDATE` does not lock the job row, so wrapping it in a transaction provided no atomicity guarantee. The unique constraint on `(job_id, candidate_id)` handles duplicate prevention at the DB level.
 
 ```typescript
 // src/modules/applications/application.service.ts
-import { DatabaseClient } from "../../core/database/db";
 import { ApplicationRepository } from "./application.repository";
 import { JobsRepository } from "../jobs/jobs.repository";
 import { CandidateRepository } from "../candidate/candidate.repository";
@@ -409,6 +416,7 @@ import {
   DuplicateApplicationError,
   JobInactiveError,
   ProfileRequiredError,
+  NotFoundError,
   ConflictError,
 } from "../../core/errors/AppError";
 
@@ -417,40 +425,36 @@ export class ApplicationService {
     private readonly applicationRepository: ApplicationRepository,
     private readonly jobsRepository: JobsRepository,
     private readonly candidateRepository: CandidateRepository,
-    private readonly db: DatabaseClient,
   ) {}
 
   async applyToJob(candidateId: string, jobId: string, coverLetter?: string) {
     const profile = await this.candidateRepository.findProfileByUserId(candidateId);
     if (!profile) throw new ProfileRequiredError();
 
-    return this.db.transaction(async (tx) => {
-      const job = await this.jobsRepository.findActiveJobByIdTx(jobId, tx);
-      if (!job) throw new JobInactiveError();
+    const job = await this.jobsRepository.findActiveJobById(jobId);
+    if (!job) throw new JobInactiveError();
 
-      try {
-        const application = await this.applicationRepository.create(
-          { jobId, candidateId, coverLetter },
-          tx,
-        );
-        return application;
-      } catch (err: unknown) {
-        // PostgreSQL unique violation code
-        if (isUniqueConstraintError(err)) throw new DuplicateApplicationError();
-        throw err;
-      }
-    });
+    try {
+      return await this.applicationRepository.create({ jobId, candidateId, coverLetter });
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) throw new DuplicateApplicationError();
+      throw err;
+    }
   }
 
   async updateStage(
     applicationId: string,
-    companyOwnerId: string,
+    ownerId: string,
     newStage: string,
     expectedVersion: number,
   ) {
+    // Pre-check gives a clear 404 instead of a silent version-mismatch conflict
+    const exists = await this.applicationRepository.existsForOwner(applicationId, ownerId);
+    if (!exists) throw new NotFoundError("Application");
+
     const result = await this.applicationRepository.updateStageWithVersion(
       applicationId,
-      companyOwnerId,
+      ownerId,
       newStage,
       expectedVersion,
     );
@@ -477,24 +481,38 @@ Authorization checks use `company_members` (not `companies.owner_id`) so that al
 
 ```typescript
 // src/modules/applications/application.repository.ts (excerpt)
+
+// Pre-check: exists + authorization (used by updateStage before the version-locked UPDATE)
+async existsForOwner(id: string, ownerId: string): Promise<boolean> {
+  const result = await this.db.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM applications a
+       JOIN jobs j ON j.id = a.job_id
+       JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
+       WHERE a.id = $1
+     ) AS exists`,
+    [id, ownerId],
+  );
+  return result.rows[0]!.exists;
+}
+
+// Uses JOIN instead of subquery for company_members authorization
 async updateStageWithVersion(
   id: string,
-  userId: string,
+  ownerId: string,
   stage: string,
-  version: number
+  version: number,
 ): Promise<ApplicationRow | null> {
   const result = await this.db.query<ApplicationRow>(
     `UPDATE applications a
      SET stage = $1, version = version + 1, updated_at = NOW()
      FROM jobs j
+     JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $4
      WHERE a.id = $2
        AND a.version = $3
        AND a.job_id = j.id
-       AND j.company_id IN (
-         SELECT company_id FROM company_members WHERE user_id = $4
-       )
      RETURNING a.*`,
-    [stage, id, version, userId]
+    [stage, id, version, ownerId],
   );
   return result.rows[0] ?? null;
 }
@@ -544,7 +562,8 @@ Companies support multiple team members. The `company_members` table links users
 ```typescript
 // src/core/queue/email.queue.ts
 import { Queue } from "bullmq";
-import { redis } from "../redis/redis";
+import { config } from "../../config";
+import { parseRedisUrl } from "./parseRedisUrl";
 
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
@@ -553,25 +572,35 @@ export type EmailJobData =
   | { type: "stage-changed"; to: string; stage: string; jobTitle: string };
 
 export class EmailQueue {
+  // BullMQ 5.x bundles its own ioredis — pass { host, port } not a Redis instance
   private readonly queue: Queue<EmailJobData>;
 
   constructor() {
+    const connection = parseRedisUrl(config.REDIS_URL);
     this.queue = new Queue<EmailJobData>("email", {
-      connection: redis,
+      connection,
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 200,
       },
-    });
+    }) as Queue<EmailJobData>;
   }
 
   async enqueueVerificationEmail(to: string, token: string): Promise<void> {
     await this.queue.add(
       "verify-email",
       { type: "verify-email", to, token },
-      { jobId: `verify-email:${to}` }, // idempotent: deduplicates by email
+      { jobId: `verify-email:${to}` },
+    );
+  }
+
+  async enqueuePasswordResetEmail(to: string, token: string): Promise<void> {
+    await this.queue.add(
+      "password-reset",
+      { type: "password-reset", to, token },
+      { jobId: `password-reset:${to}` },
     );
   }
 
@@ -583,7 +612,7 @@ export class EmailQueue {
     await this.queue.add(
       "company-invite",
       { type: "company-invite", to, token, companyName },
-      { jobId: `company-invite:${to}` }, // idempotent: deduplicates by email
+      { jobId: `company-invite:${to}` },
     );
   }
 
@@ -872,7 +901,7 @@ Before marking a phase done:
 
 ## Common Pitfalls to Avoid
 
-- Do not import `db` directly into service files — pass it through the repository layer only.
+- Do not import `db` directly into service files for queries — delegate all SQL to repositories. Exception: a service may receive `db` to own a transaction boundary (e.g. `AuthService`) and pass a `PoolClient` down to repository methods.
 - Do not use `Promise.all` for writes that must be atomic — use a transaction.
 - Do not return password hashes or token hashes in any API response.
 - Do not cache admin endpoints — admin data must always be fresh.
@@ -880,10 +909,12 @@ Before marking a phase done:
 - Do not use `any` as a temporary shortcut — define the type properly from the start.
 - Do not send emails synchronously — always delegate to BullMQ.
 - Do not use `companies.owner_id` for application or job authorization — use `company_members` so recruiters have access too.
-- Do not allow a candidate to apply without a profile — `applyToJob` must check `findProfileByUserId` before opening the transaction.
+- Do not allow a candidate to apply without a profile — `applyToJob` must check `findProfileByUserId` before inserting.
 - Do not use `LEFT JOIN candidate_profiles` in applicant queries — it must be `INNER JOIN` because profile existence is enforced at apply time.
+- Do not wrap `applyToJob` in a transaction — a plain SELECT inside a transaction does not lock the row; the unique constraint handles duplicate prevention at the DB level.
 - Do not call another module's controller from a route — routes call their own module's controller only. Cross-module work goes through services.
 - Do not define `JobRow`, `JobResponse`, or `toJobResponse` outside the `jobs` module — types, responses, and mappers belong to the module that owns the entity. Other modules import from there.
 - Do not cache company profile by `userId` — use `companyId` as the cache key so all members of the same company share one cache entry.
 - Do not register a DI dependency before its own dependencies are registered — the container calls the factory immediately on `register`, so registration order matters. Register leaves before roots (e.g. `jobsController` must come after `applicationService` since it depends on it).
 - Do not insert a second owner into `company_members` for the same company — the partial unique index (`WHERE role = 'owner'`) will reject it at the DB level. Use `transferOwnership` instead.
+- Do not use subquery `IN (SELECT company_id FROM company_members ...)` for authorization in application queries — use an explicit `JOIN company_members` so the planner can use indexes efficiently.

@@ -1,6 +1,5 @@
-import { PoolClient } from "pg";
 import { DatabaseClient } from "../../core/database/db";
-import type { JobRow, JobWithCompanyRow } from "./jobs.types";
+import type { JobWithCompanyRow } from "./jobs.types";
 import { ListJobsQueryInput } from "./jobs.dto";
 import { FindJobsResult } from "./jobs.types";
 
@@ -70,11 +69,4 @@ export class JobsRepository {
     return result.rows[0] ?? null;
   }
 
-  async findActiveJobByIdTx(id: string, tx: PoolClient): Promise<JobRow | null> {
-    const result = await tx.query<JobRow>(
-      "SELECT * FROM jobs WHERE id = $1 AND is_active = TRUE",
-      [id],
-    );
-    return result.rows[0] ?? null;
-  }
 }

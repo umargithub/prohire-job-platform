@@ -1,4 +1,3 @@
-import { PoolClient } from "pg";
 import { DatabaseClient } from "../../core/database/db";
 import {
   ApplicationRow,
@@ -11,11 +10,12 @@ import {
 export class ApplicationRepository {
   constructor(private readonly db: DatabaseClient) {}
 
-  async create(
-    data: { jobId: string; candidateId: string; coverLetter?: string },
-    tx: PoolClient,
-  ): Promise<ApplicationRow> {
-    const result = await tx.query<ApplicationRow>(
+  async create(data: {
+    jobId: string;
+    candidateId: string;
+    coverLetter?: string;
+  }): Promise<ApplicationRow> {
+    const result = await this.db.query<ApplicationRow>(
       `INSERT INTO applications (job_id, candidate_id, cover_letter)
        VALUES ($1, $2, $3)
        RETURNING *`,
@@ -63,8 +63,8 @@ export class ApplicationRepository {
       `SELECT COUNT(*) AS count
        FROM applications a
        JOIN jobs j ON j.id = a.job_id
-       WHERE a.job_id = $1
-         AND j.company_id IN (SELECT company_id FROM company_members WHERE user_id = $2)`,
+       JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
+       WHERE a.job_id = $1`,
       [jobId, ownerId],
     );
     const total = parseInt(countResult.rows[0]!.count, 10);
@@ -73,10 +73,10 @@ export class ApplicationRepository {
       `SELECT a.*, u.email AS candidate_email, cp.full_name, cp.avatar_url
        FROM applications a
        JOIN jobs j ON j.id = a.job_id
+       JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
        JOIN users u ON u.id = a.candidate_id
        JOIN candidate_profiles cp ON cp.user_id = a.candidate_id
        WHERE a.job_id = $1
-         AND j.company_id IN (SELECT company_id FROM company_members WHERE user_id = $2)
        ORDER BY a.created_at DESC
        LIMIT $3 OFFSET $4`,
       [jobId, ownerId, limit, offset],
@@ -98,14 +98,27 @@ export class ApplicationRepository {
               cp.resume_url,
               cp.avatar_url
        FROM applications a
-       JOIN jobs j                ON j.id      = a.job_id
-       JOIN users u               ON u.id      = a.candidate_id
-       JOIN candidate_profiles cp ON cp.user_id = a.candidate_id
-       WHERE a.id = $1
-         AND j.company_id IN (SELECT company_id FROM company_members WHERE user_id = $2)`,
+       JOIN jobs j                ON j.id          = a.job_id
+       JOIN company_members cm    ON cm.company_id  = j.company_id AND cm.user_id = $2
+       JOIN users u               ON u.id           = a.candidate_id
+       JOIN candidate_profiles cp ON cp.user_id     = a.candidate_id
+       WHERE a.id = $1`,
       [applicationId, userId],
     );
     return result.rows[0] ?? null;
+  }
+
+  async existsForOwner(id: string, ownerId: string): Promise<boolean> {
+    const result = await this.db.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM applications a
+         JOIN jobs j ON j.id = a.job_id
+         JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
+         WHERE a.id = $1
+       ) AS exists`,
+      [id, ownerId],
+    );
+    return result.rows[0]!.exists;
   }
 
   async updateStageWithVersion(
@@ -118,10 +131,10 @@ export class ApplicationRepository {
       `UPDATE applications a
        SET stage = $1, version = version + 1, updated_at = NOW()
        FROM jobs j
+       JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $4
        WHERE a.id = $2
          AND a.version = $3
          AND a.job_id = j.id
-         AND j.company_id IN (SELECT company_id FROM company_members WHERE user_id = $4)
        RETURNING a.*`,
       [stage, id, version, ownerId],
     );
