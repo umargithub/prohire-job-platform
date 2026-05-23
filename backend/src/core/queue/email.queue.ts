@@ -31,7 +31,7 @@ export class EmailQueue {
     await this.queue.add(
       "verify-email",
       { type: "verify-email", to, token },
-      { jobId: `verify-email:${to}` },
+      { jobId: `verify-email:${to}:${token}` },
     );
   }
 
@@ -51,7 +51,7 @@ export class EmailQueue {
     await this.queue.add(
       "password-reset",
       { type: "password-reset", to, token },
-      { jobId: `password-reset:${to}` },
+      { jobId: `password-reset:${to}:${token}` },
     );
   }
 
@@ -63,7 +63,7 @@ export class EmailQueue {
     await this.queue.add(
       "company-invite",
       { type: "company-invite", to, token, companyName },
-      { jobId: `company-invite:${to}` },
+      { jobId: `company-invite:${to}:${token}` },
     );
   }
 }
