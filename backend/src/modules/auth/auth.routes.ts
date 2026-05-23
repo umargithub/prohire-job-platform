@@ -14,7 +14,8 @@ const registerLimit = createRateLimiter("auth-register", 10, 15 * 60_000, "ip");
 const loginLimit = createRateLimiter("auth-login", 20, 15 * 60_000, "ip");
 const forgotLimit = createRateLimiter("auth-forgot", 5, 15 * 60_000, "ip");
 const resendLimit = createRateLimiter("auth-resend", 5, 15 * 60_000, "ip");
-const verifyLimit = createRateLimiter("auth-verify", 20, 15 * 60_000, "ip");
+const verifyLimitIp = createRateLimiter("auth-verify:ip", 5, 15 * 60_000, "ip");
+const verifyLimitGlobal = createRateLimiter("auth-verify:global", 100, 15 * 60_000, "global");
 
 export default function authRoutes(authController: AuthController): Router {
   const router = Router();
@@ -35,7 +36,7 @@ export default function authRoutes(authController: AuthController): Router {
 
   router.post("/login", loginLimit, validate(LoginDto), authController.login);
 
-  router.get("/verify-email", verifyLimit, authController.verifyEmail);
+  router.get("/verify-email", verifyLimitIp, verifyLimitGlobal, authController.verifyEmail);
 
   router.post("/refresh", authController.refresh);
 
