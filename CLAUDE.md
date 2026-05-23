@@ -110,7 +110,7 @@ Deploy   → After frontend is complete
 
 ### Queue Jobs
 
-- Every BullMQ job must include a `jobId` that encodes `{type}:{userId}` to ensure idempotency.
+- Every BullMQ job must include a `jobId` to ensure idempotency. Token-based emails (verify, reset, invite) use `{type}:{email}:{token}` — scoped to the token so resend always queues. Non-token events use a stable key like `{type}:{entityId}:{event}`.
 - Workers must handle failures gracefully and log with structured output.
 - Dead-letter events must be logged with full job data for debugging.
 
@@ -412,7 +412,9 @@ No transaction is used for `applyToJob`. A plain SELECT + INSERT is sufficient �
 import { ApplicationRepository } from "./application.repository";
 import { JobsRepository } from "../jobs/jobs.repository";
 import { CandidateRepository } from "../candidate/candidate.repository";
+import { EmailQueue } from "../../core/queue/email.queue";
 import {
+  EmailStage,
   DuplicateApplicationError,
   JobInactiveError,
   ProfileRequiredError,
@@ -425,6 +427,7 @@ export class ApplicationService {
     private readonly applicationRepository: ApplicationRepository,
     private readonly jobsRepository: JobsRepository,
     private readonly candidateRepository: CandidateRepository,
+    private readonly emailQueue: EmailQueue,
   ) {}
 
   async applyToJob(candidateId: string, jobId: string, coverLetter?: string) {
@@ -445,8 +448,8 @@ export class ApplicationService {
   async updateStage(
     applicationId: string,
     ownerId: string,
-    newStage: string,
-    expectedVersion: number,
+    stage: EmailStage,
+    version: number,
   ) {
     // Pre-check gives a clear 404 instead of a silent version-mismatch conflict
     const exists = await this.applicationRepository.existsForOwner(applicationId, ownerId);
@@ -455,13 +458,20 @@ export class ApplicationService {
     const result = await this.applicationRepository.updateStageWithVersion(
       applicationId,
       ownerId,
-      newStage,
-      expectedVersion,
+      stage,
+      version,
     );
     if (!result)
       throw new ConflictError(
         "Application was modified by another request. Please refresh and try again.",
       );
+
+    // Notify candidate — findById has the email and job title needed for the template
+    const detail = await this.applicationRepository.findById(applicationId, ownerId);
+    if (detail) {
+      await this.emailQueue.enqueueStageChangedEmail(detail.candidate_email, stage, detail.job_title);
+    }
+
     return result;
   }
 }
@@ -564,12 +574,13 @@ Companies support multiple team members. The `company_members` table links users
 import { Queue } from "bullmq";
 import { config } from "../../config";
 import { parseRedisUrl } from "./parseRedisUrl";
+import { EmailStage } from "../../modules/applications/application.types";
 
 export type EmailJobData =
   | { type: "verify-email"; to: string; token: string }
   | { type: "password-reset"; to: string; token: string }
   | { type: "company-invite"; to: string; token: string; companyName: string }
-  | { type: "stage-changed"; to: string; stage: string; jobTitle: string };
+  | { type: "stage-changed"; to: string; stage: EmailStage; jobTitle: string };
 
 export class EmailQueue {
   // BullMQ 5.x bundles its own ioredis — pass { host, port } not a Redis instance
@@ -592,7 +603,7 @@ export class EmailQueue {
     await this.queue.add(
       "verify-email",
       { type: "verify-email", to, token },
-      { jobId: `verify-email:${to}` },
+      { jobId: `verify-email:${to}:${token}` },
     );
   }
 
@@ -600,7 +611,7 @@ export class EmailQueue {
     await this.queue.add(
       "password-reset",
       { type: "password-reset", to, token },
-      { jobId: `password-reset:${to}` },
+      { jobId: `password-reset:${to}:${token}` },
     );
   }
 
@@ -612,13 +623,13 @@ export class EmailQueue {
     await this.queue.add(
       "company-invite",
       { type: "company-invite", to, token, companyName },
-      { jobId: `company-invite:${to}` },
+      { jobId: `company-invite:${to}:${token}` },
     );
   }
 
   async enqueueStageChangedEmail(
     to: string,
-    stage: string,
+    stage: EmailStage,
     jobTitle: string,
   ): Promise<void> {
     await this.queue.add(
@@ -918,3 +929,4 @@ Before marking a phase done:
 - Do not register a DI dependency before its own dependencies are registered — the container calls the factory immediately on `register`, so registration order matters. Register leaves before roots (e.g. `jobsController` must come after `applicationService` since it depends on it).
 - Do not insert a second owner into `company_members` for the same company — the partial unique index (`WHERE role = 'owner'`) will reject it at the DB level. Use `transferOwnership` instead.
 - Do not use subquery `IN (SELECT company_id FROM company_members ...)` for authorization in application queries — use an explicit `JOIN company_members` so the planner can use indexes efficiently.
+- Do not use email-only jobIds for token-based emails — use `{type}:{email}:{token}` so resend requests are never silently dropped by BullMQ deduplication. Token invalidation at the DB level ensures correctness; rate limiting ensures abuse prevention.
