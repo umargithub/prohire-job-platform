@@ -23,10 +23,10 @@ export const config = {
   CLOUDINARY_API_KEY: requireEnv("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: requireEnv("CLOUDINARY_API_SECRET"),
 
-  // SMTP — optional; if unset, emails are logged to console (dev mode)
-  SMTP_HOST: process.env["SMTP_HOST"],
+  // SMTP — required in production; optional in dev (emails logged and skipped)
+  SMTP_HOST: process.env["NODE_ENV"] === "production" ? requireEnv("SMTP_HOST") : process.env["SMTP_HOST"],
   SMTP_PORT: parseInt(process.env["SMTP_PORT"] ?? "587", 10),
-  SMTP_USER: process.env["SMTP_USER"],
-  SMTP_PASS: process.env["SMTP_PASS"],
-  EMAIL_FROM: process.env["EMAIL_FROM"] ?? "noreply@prohire.dev",
+  SMTP_USER: process.env["NODE_ENV"] === "production" ? requireEnv("SMTP_USER") : process.env["SMTP_USER"],
+  SMTP_PASS: process.env["NODE_ENV"] === "production" ? requireEnv("SMTP_PASS") : process.env["SMTP_PASS"],
+  EMAIL_FROM: process.env["NODE_ENV"] === "production" ? requireEnv("EMAIL_FROM") : process.env["EMAIL_FROM"] ?? "noreply@prohire.dev",
 };
