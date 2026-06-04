@@ -41,7 +41,7 @@ export class ApplicationRepository {
       `SELECT a.*, j.title AS job_title, j.company_id, c.name AS company_name
        FROM applications a
        JOIN jobs j ON j.id = a.job_id
-       JOIN companies c ON c.id = j.company_id
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE a.candidate_id = $1
        ORDER BY a.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -74,7 +74,7 @@ export class ApplicationRepository {
        FROM applications a
        JOIN jobs j ON j.id = a.job_id
        JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
-       JOIN users u ON u.id = a.candidate_id
+       JOIN users u ON u.id = a.candidate_id AND u.is_deleted = FALSE
        JOIN candidate_profiles cp ON cp.user_id = a.candidate_id
        WHERE a.job_id = $1
        ORDER BY a.created_at DESC
@@ -100,7 +100,7 @@ export class ApplicationRepository {
        FROM applications a
        JOIN jobs j                ON j.id          = a.job_id
        JOIN company_members cm    ON cm.company_id  = j.company_id AND cm.user_id = $2
-       JOIN users u               ON u.id           = a.candidate_id
+       JOIN users u               ON u.id           = a.candidate_id AND u.is_deleted = FALSE
        JOIN candidate_profiles cp ON cp.user_id     = a.candidate_id
        WHERE a.id = $1`,
       [applicationId, userId],

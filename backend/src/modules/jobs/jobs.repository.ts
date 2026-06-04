@@ -48,7 +48,7 @@ export class JobsRepository {
     const dataResult = await this.db.query<JobWithCompanyRow>(
       `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM jobs j
-       JOIN companies c ON c.id = j.company_id
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE ${where}
        ORDER BY j.created_at DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
@@ -62,7 +62,7 @@ export class JobsRepository {
     const result = await this.db.query<JobWithCompanyRow>(
       `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM jobs j
-       JOIN companies c ON c.id = j.company_id
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE j.id = $1 AND j.is_active = TRUE`,
       [id],
     );

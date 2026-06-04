@@ -24,7 +24,10 @@ async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
       break;
     }
     case "company-invite": {
-      const { subject, html } = companyInviteTemplate(data.token, data.companyName);
+      const { subject, html } = companyInviteTemplate(
+        data.token,
+        data.companyName,
+      );
       await sendMail({ to: data.to, subject, html });
       break;
     }
@@ -34,7 +37,10 @@ async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
       break;
     }
     default: {
-      logger.warn({ type: (data as { type: string }).type }, "Unhandled email job type");
+      logger.warn(
+        { type: (data as { type: string }).type },
+        "Unhandled email job type",
+      );
     }
   }
 }

@@ -5,17 +5,17 @@ import { UserRow, TokenRow, RefreshTokenRow } from "./auth.types";
 export class AuthRepository {
   constructor(private readonly db: DatabaseClient) {}
 
-  async findByEmail(email: string): Promise<UserRow | null> {
+  async findActiveByEmail(email: string): Promise<UserRow | null> {
     const result = await this.db.query<UserRow>(
-      "SELECT * FROM users WHERE email = $1",
+      "SELECT * FROM users WHERE email = $1 AND is_deleted = FALSE",
       [email],
     );
     return result.rows[0] ?? null;
   }
 
-  async findById(id: string): Promise<UserRow | null> {
+  async findActiveById(id: string): Promise<UserRow | null> {
     const result = await this.db.query<UserRow>(
-      "SELECT * FROM users WHERE id = $1",
+      "SELECT * FROM users WHERE id = $1 AND is_deleted = FALSE",
       [id],
     );
     return result.rows[0] ?? null;
@@ -25,7 +25,7 @@ export class AuthRepository {
     input: {
       email: string;
       passwordHash: string;
-      role: "candidate" | "company" | "admin";
+      role: "candidate" | "company" | "admin" | "super_admin" | "moderator";
     },
     tx?: PoolClient,
   ): Promise<UserRow> {
@@ -41,14 +41,14 @@ export class AuthRepository {
 
   async markEmailVerified(userId: string): Promise<void> {
     await this.db.query(
-      "UPDATE users SET is_verified = TRUE, updated_at = NOW() WHERE id = $1",
+      "UPDATE users SET is_verified = TRUE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE",
       [userId],
     );
   }
 
   async updatePassword(userId: string, passwordHash: string): Promise<void> {
     await this.db.query(
-      "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+      "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE",
       [passwordHash, userId],
     );
   }
@@ -102,7 +102,7 @@ export class AuthRepository {
       `SELECT rt.id, rt.user_id, rt.token_hash, rt.expires_at, rt.created_at,
               u.email, u.role
        FROM refresh_tokens rt
-       JOIN users u ON u.id = rt.user_id
+       JOIN users u ON u.id = rt.user_id AND u.is_deleted = FALSE
        WHERE rt.token_hash = $1 AND rt.expires_at > NOW()`,
       [tokenHash],
     );

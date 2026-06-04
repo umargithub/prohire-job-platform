@@ -1,12 +1,15 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../core/utils/asyncHandler";
 import { CandidateService } from "./candidate.service";
+import { BookmarkService } from "../bookmarks/bookmark.service";
 import { UpsertCandidateProfileInput } from "./candidate.dto";
 import { toCandidateProfileResponse } from "./candidate.mapper";
-import { AppError } from "../../core/errors/AppError";
 
 export class CandidateController {
-  constructor(private readonly candidateService: CandidateService) {}
+  constructor(
+    private readonly candidateService: CandidateService,
+    private readonly bookmarkService: BookmarkService,
+  ) {}
 
   createProfile = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
@@ -64,6 +67,30 @@ export class CandidateController {
       res
         .status(200)
         .json({ success: true, data: toCandidateProfileResponse(row) });
+    },
+  );
+
+  addBookmark = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const { jobId } = req.body as { jobId: string };
+      const result = await this.bookmarkService.addBookmark(req.user!.userId, jobId);
+      res.status(201).json({ success: true, data: result });
+    },
+  );
+
+  removeBookmark = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const { jobId } = req.params as { jobId: string };
+      await this.bookmarkService.removeBookmark(req.user!.userId, jobId);
+      res.status(204).send();
+    },
+  );
+
+  getBookmarks = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const page = Math.max(1, parseInt((req.query["page"] as string) ?? "1", 10));
+      const result = await this.bookmarkService.getBookmarks(req.user!.userId, page, 20);
+      res.status(200).json({ success: true, data: result });
     },
   );
 }

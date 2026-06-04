@@ -15,8 +15,12 @@ import {
   EmailNotVerifiedError,
   UnauthorizedError,
 } from "../../core/errors/AppError";
+import { withTimingFloor } from "../../core/utils/timingFloor";
 
 const BCRYPT_ROUNDS = 12;
+
+// Pre-computed at module load so login always runs bcrypt regardless of user existence.
+const DUMMY_HASH_PROMISE = bcrypt.hash("__timing_sentinel__", BCRYPT_ROUNDS);
 const VERIFICATION_TOKEN_EXPIRES_MS = 24 * 60 * 60 * 1000; // 24h
 const REFRESH_TOKEN_EXPIRES_MS = 7 * 24 * 60 * 60 * 1000; // 7d
 const PASSWORD_RESET_EXPIRES_MS = 60 * 60 * 1000; // 1h
@@ -29,7 +33,7 @@ export class AuthService {
   ) {}
 
   async registerCandidate(input: RegisterInput): Promise<{ message: string }> {
-    const existing = await this.authRepository.findByEmail(input.email);
+    const existing = await this.authRepository.findActiveByEmail(input.email);
     if (existing) throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -51,7 +55,7 @@ export class AuthService {
   }
 
   async registerCompany(input: RegisterInput): Promise<{ message: string }> {
-    const existing = await this.authRepository.findByEmail(input.email);
+    const existing = await this.authRepository.findActiveByEmail(input.email);
     if (existing) throw new AppError("Email already in use", 409, "EMAIL_IN_USE");
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -78,25 +82,23 @@ export class AuthService {
     const SAFE_MESSAGE =
       "If that email exists and is unverified, a new verification email has been sent.";
 
-    const user = await this.authRepository.findByEmail(input.email);
+    return withTimingFloor(200, async () => {
+      const user = await this.authRepository.findActiveByEmail(input.email);
 
-    if (!user || user.is_verified) {
+      if (!user || user.is_verified) {
+        return { message: SAFE_MESSAGE };
+      }
+
+      const rawToken = generateToken();
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
+
+      await this.authRepository.deleteUserVerificationTokens(user.id);
+      await this.authRepository.saveVerificationToken(user.id, tokenHash, expiresAt);
+      await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
+
       return { message: SAFE_MESSAGE };
-    }
-
-    const rawToken = generateToken();
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
-
-    await this.authRepository.deleteUserVerificationTokens(user.id);
-    await this.authRepository.saveVerificationToken(
-      user.id,
-      tokenHash,
-      expiresAt,
-    );
-    await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
-
-    return { message: SAFE_MESSAGE };
+    });
   }
 
   async login(input: LoginInput): Promise<{
@@ -104,13 +106,11 @@ export class AuthService {
     refreshToken: string;
     user: { id: string; email: string; role: string };
   }> {
-    const user = await this.authRepository.findByEmail(input.email);
-    if (!user) {
-      throw new UnauthorizedError("Invalid credentials");
-    }
+    const user = await this.authRepository.findActiveByEmail(input.email);
+    const hashToCompare = user?.password_hash ?? await DUMMY_HASH_PROMISE;
+    const valid = await bcrypt.compare(input.password, hashToCompare);
 
-    const valid = await bcrypt.compare(input.password, user.password_hash);
-    if (!valid) {
+    if (!user || !valid) {
       throw new UnauthorizedError("Invalid credentials");
     }
 
@@ -202,25 +202,20 @@ export class AuthService {
     const SAFE_MESSAGE =
       "If that email exists, a password reset link has been sent.";
 
-    const user = await this.authRepository.findByEmail(email);
-    if (!user) {
-      // No email enumeration — always return the same response
+    return withTimingFloor(200, async () => {
+      const user = await this.authRepository.findActiveByEmail(email);
+      if (!user) return { message: SAFE_MESSAGE };
+
+      await this.authRepository.deleteUserPasswordResetTokens(user.id);
+
+      const rawToken = generateToken();
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MS);
+      await this.authRepository.savePasswordResetToken(user.id, tokenHash, expiresAt);
+      await this.emailQueue.enqueuePasswordResetEmail(user.email, rawToken);
+
       return { message: SAFE_MESSAGE };
-    }
-
-    await this.authRepository.deleteUserPasswordResetTokens(user.id);
-
-    const rawToken = generateToken();
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MS);
-    await this.authRepository.savePasswordResetToken(
-      user.id,
-      tokenHash,
-      expiresAt,
-    );
-    await this.emailQueue.enqueuePasswordResetEmail(user.email, rawToken);
-
-    return { message: SAFE_MESSAGE };
+    });
   }
 
   async resetPassword(
@@ -244,5 +239,18 @@ export class AuthService {
     await this.authRepository.updatePassword(tokenRow.user_id, passwordHash);
 
     return { message: "Password reset successfully." };
+  }
+
+  async getMe(
+    userId: string,
+  ): Promise<{ id: string; email: string; role: string; isVerified: boolean }> {
+    const user = await this.authRepository.findActiveById(userId);
+    if (!user) throw new UnauthorizedError("User not found");
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.is_verified,
+    };
   }
 }

@@ -1,6 +1,6 @@
 import multer, { FileFilterCallback } from "multer";
 import { Request, Response, NextFunction, RequestHandler } from "express";
-import { fileTypeFromBuffer } from "file-type";
+import { fromBuffer } from "file-type";
 import { AppError } from "../errors/AppError";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -68,7 +68,7 @@ function validateFileContent(folder: UploadFolder): RequestHandler {
     }
 
     try {
-      const detected = await fileTypeFromBuffer(req.file!.buffer);
+      const detected = await fromBuffer(req.file!.buffer);
 
       if (!detected || !reliable.includes(detected.mime)) {
         next(

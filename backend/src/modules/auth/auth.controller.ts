@@ -119,4 +119,9 @@ export class AuthController {
       res.status(200).json({ success: true, data: result });
     },
   );
+
+  me = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const user = await this.authService.getMe(req.user!.userId);
+    res.status(200).json({ success: true, data: user });
+  });
 }

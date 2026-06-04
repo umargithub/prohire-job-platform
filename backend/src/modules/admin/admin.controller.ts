@@ -1,8 +1,13 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../core/utils/asyncHandler";
 import { AdminService } from "./admin.service";
-import { ListUsersQueryInput } from "./admin.dto";
-import { toAdminUserResponse } from "./admin.mapper";
+import {
+  ListUsersQueryInput,
+  ListCompaniesQueryInput,
+  ListJobsQueryInput,
+  CreateAdminUserInput,
+} from "./admin.dto";
+import { toAdminUserResponse, toAdminCompanyResponse, toAdminJobResponse } from "./admin.mapper";
 
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
@@ -26,6 +31,42 @@ export class AdminController {
     const companyId = req.params["id"]!;
     await this.adminService.deleteCompany(companyId);
     res.status(204).send();
+  });
+
+  listCompanies = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const filters = req.query as unknown as ListCompaniesQueryInput;
+    const { companies, total, page, limit } = await this.adminService.listCompanies(filters);
+    res.status(200).json({
+      success: true,
+      data: { companies: companies.map(toAdminCompanyResponse), total, page, limit },
+    });
+  });
+
+  listJobs = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const filters = req.query as unknown as ListJobsQueryInput;
+    const { jobs, total, page, limit } = await this.adminService.listJobs(filters);
+    res.status(200).json({
+      success: true,
+      data: { jobs: jobs.map(toAdminJobResponse), total, page, limit },
+    });
+  });
+
+  deactivateJob = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const jobId = req.params["id"]!;
+    await this.adminService.deactivateJob(jobId);
+    res.status(204).send();
+  });
+
+  verifyUser = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.params["id"]!;
+    await this.adminService.verifyUser(userId);
+    res.status(204).send();
+  });
+
+  createAdminUser = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const input = req.body as CreateAdminUserInput;
+    const user = await this.adminService.createAdminUser(input);
+    res.status(201).json({ success: true, data: toAdminUserResponse(user) });
   });
 
   getStats = asyncHandler(async (_req: Request, res: Response): Promise<void> => {

@@ -4,6 +4,7 @@ import { authorize } from "../../core/middlewares/authorize.middleware";
 import { validate } from "../../core/middlewares/validate.middleware";
 import { uploadLogo } from "../../core/middlewares/upload.middleware";
 import { createRateLimiter } from "../../core/middlewares/rateLimiter.middleware";
+import { validateUuidParam } from "../../core/middlewares/validateUuidParam.middleware";
 import { CompanyController } from "./company.controller";
 import {
   UpsertCompanyProfileDto,
@@ -20,6 +21,9 @@ export default function companyRoutes(
   companyController: CompanyController,
 ): Router {
   const router = Router();
+
+  router.param("id", validateUuidParam("id"));
+  router.param("userId", validateUuidParam("userId"));
 
   // ── Company profile ────────────────────────────────────────────────────────
   router.post(

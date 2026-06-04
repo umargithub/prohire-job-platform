@@ -2,6 +2,7 @@ import { Router } from "express";
 import { AuthController } from "./auth.controller";
 import { validate } from "../../core/middlewares/validate.middleware";
 import { createRateLimiter } from "../../core/middlewares/rateLimiter.middleware";
+import { authenticate } from "../../core/middlewares/authenticate.middleware";
 import {
   RegisterDto,
   LoginDto,
@@ -61,6 +62,8 @@ export default function authRoutes(authController: AuthController): Router {
     validate(ResendVerificationDto),
     authController.resendVerification,
   );
+
+  router.get("/me", authenticate, authController.me);
 
   return router;
 }

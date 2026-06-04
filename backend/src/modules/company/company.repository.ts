@@ -35,7 +35,7 @@ export class CompanyRepository {
     const result = await this.db.query<CompanyRow>(
       `SELECT c.* FROM companies c
        JOIN company_members cm ON cm.company_id = c.id
-       WHERE cm.user_id = $1`,
+       WHERE cm.user_id = $1 AND c.is_deleted = FALSE`,
       [userId],
     );
     return result.rows[0] ?? null;
@@ -44,7 +44,7 @@ export class CompanyRepository {
   async findMembersByCompanyId(companyId: string): Promise<CompanyMemberWithEmailRow[]> {
     const result = await this.db.query<CompanyMemberWithEmailRow>(
       `SELECT cm.*, u.email FROM company_members cm
-       JOIN users u ON u.id = cm.user_id
+       JOIN users u ON u.id = cm.user_id AND u.is_deleted = FALSE
        WHERE cm.company_id = $1
        ORDER BY cm.created_at ASC`,
       [companyId],
@@ -78,9 +78,9 @@ export class CompanyRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async findUserByEmail(email: string): Promise<{ id: string; role: string } | null> {
+  async findActiveUserByEmail(email: string): Promise<{ id: string; role: string } | null> {
     const result = await this.db.query<{ id: string; role: string }>(
-      `SELECT id, role FROM users WHERE email = $1`,
+      `SELECT id, role FROM users WHERE email = $1 AND is_deleted = FALSE`,
       [email],
     );
     return result.rows[0] ?? null;
@@ -199,7 +199,7 @@ export class CompanyRepository {
        )
        SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM inserted j
-       JOIN companies c ON c.id = j.company_id`,
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE`,
       [
         companyId,
         input.title,
@@ -218,7 +218,7 @@ export class CompanyRepository {
     const result = await this.db.query<JobWithCompanyRow>(
       `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM jobs j
-       JOIN companies c ON c.id = j.company_id
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE j.company_id = $1
        ORDER BY j.created_at DESC`,
       [companyId],
@@ -230,7 +230,7 @@ export class CompanyRepository {
     const result = await this.db.query<JobWithCompanyRow>(
       `SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM jobs j
-       JOIN companies c ON c.id = j.company_id
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE j.id = $1 AND j.company_id = $2`,
       [id, companyId],
     );
@@ -260,7 +260,7 @@ export class CompanyRepository {
        )
        SELECT j.*, c.name AS company_name, c.logo_url AS company_logo_url
        FROM updated j
-       JOIN companies c ON c.id = j.company_id`,
+       JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE`,
       [
         input.title ?? null,
         input.description ?? null,

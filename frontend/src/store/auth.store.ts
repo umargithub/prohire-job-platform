@@ -1,18 +1,19 @@
 "use client";
 
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { UserRole } from '@/types/api';
 
-interface User {
+export interface AuthUser {
   id: string;
   email: string;
-  role: string;
+  role: UserRole;
 }
 
 interface AuthState {
   accessToken: string | null;
-  user: User | null;
-  setAuth: (token: string, user: User) => void;
+  user: AuthUser | null;
+  setAuth: (token: string, user: AuthUser) => void;
   clearAuth: () => void;
 }
 
@@ -24,6 +25,6 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (accessToken, user) => set({ accessToken, user }),
       clearAuth: () => set({ accessToken: null, user: null }),
     }),
-    { name: "prohire-auth" },
+    { name: 'prohire-auth' },
   ),
 );

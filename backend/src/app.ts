@@ -1,15 +1,19 @@
 import express, { Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import compression from "compression";
 import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
+import swaggerUi from "swagger-ui-express";
 
 import { config } from "./config";
 import { logger } from "./core/utils/logger";
 import { requestIdMiddleware } from "./core/middlewares/requestId.middleware";
+import { requestTimeout } from "./core/middlewares/requestTimeout.middleware";
 import { createRateLimiter } from "./core/middlewares/rateLimiter.middleware";
 import { globalErrorHandler } from "./core/errors/error-handler.middleware";
 import { NotFoundError } from "./core/errors/AppError";
+import { openApiSpec } from "./core/docs/openapi";
 import { container } from "./core/container/container";
 import { db } from "./core/database/db";
 import { EmailQueue } from "./core/queue/email.queue";
@@ -31,6 +35,8 @@ import { ApplicationController } from "./modules/applications/application.contro
 import { AdminRepository } from "./modules/admin/admin.repository";
 import { AdminService } from "./modules/admin/admin.service";
 import { AdminController } from "./modules/admin/admin.controller";
+import { BookmarkRepository } from "./modules/bookmarks/bookmark.repository";
+import { BookmarkService } from "./modules/bookmarks/bookmark.service";
 
 import healthRoutes from "./modules/health/health.routes";
 import authRoutes from "./modules/auth/auth.routes";
@@ -47,18 +53,26 @@ if (config.TRUST_PROXY) {
   app.set("trust proxy", 1);
 }
 
+// ── Compression ───────────────────────────────────────────────────────────────
+app.use(compression());
+
 // ── Security ──────────────────────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
     origin: config.FRONTEND_URL,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
+
+// ── Request timeout (30 s) ────────────────────────────────────────────────────
+app.use(requestTimeout(30_000));
 
 // ── Request ID ────────────────────────────────────────────────────────────────
 app.use(requestIdMiddleware);
@@ -115,9 +129,17 @@ container.register(
   "candidateService",
   () => new CandidateService(container.resolve<CandidateRepository>("candidateRepository")),
 );
+container.register("bookmarkRepository", () => new BookmarkRepository(db));
+container.register(
+  "bookmarkService",
+  () => new BookmarkService(container.resolve<BookmarkRepository>("bookmarkRepository")),
+);
 container.register(
   "candidateController",
-  () => new CandidateController(container.resolve<CandidateService>("candidateService")),
+  () => new CandidateController(
+    container.resolve<CandidateService>("candidateService"),
+    container.resolve<BookmarkService>("bookmarkService"),
+  ),
 );
 container.register("applicationRepository", () => new ApplicationRepository(db));
 container.register(
@@ -153,6 +175,9 @@ container.register(
   "adminController",
   () => new AdminController(container.resolve<AdminService>("adminService")),
 );
+
+// ── API docs ──────────────────────────────────────────────────────────────────
+app.use("/api/v1/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/health", healthRoutes);

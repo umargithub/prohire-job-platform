@@ -3,6 +3,7 @@ import { authenticate } from "../../core/middlewares/authenticate.middleware";
 import { authorize } from "../../core/middlewares/authorize.middleware";
 import { validate } from "../../core/middlewares/validate.middleware";
 import { validateQuery } from "../../core/middlewares/validateQuery.middleware";
+import { validateUuidParam } from "../../core/middlewares/validateUuidParam.middleware";
 import { ApplicationController } from "./application.controller";
 import {
   ApplyToJobDto,
@@ -14,6 +15,8 @@ export default function applicationRoutes(
   controller: ApplicationController,
 ): Router {
   const router = Router();
+
+  router.param("id", validateUuidParam("id"));
 
   // Candidate: apply to a job
   router.post(

@@ -10,3 +10,4 @@ export const UpsertCandidateProfileDto = z.object({
 export type UpsertCandidateProfileInput = z.infer<
   typeof UpsertCandidateProfileDto
 >;
+

@@ -2,7 +2,7 @@ export interface UserRow {
   id: string;
   email: string;
   password_hash: string;
-  role: "candidate" | "company" | "admin";
+  role: "candidate" | "company" | "admin" | "super_admin" | "moderator";
   is_verified: boolean;
   created_at: Date;
   updated_at: Date;
@@ -18,5 +18,5 @@ export interface TokenRow {
 
 export interface RefreshTokenRow extends TokenRow {
   email: string;
-  role: "candidate" | "company" | "admin";
+  role: "candidate" | "company" | "admin" | "super_admin" | "moderator";
 }

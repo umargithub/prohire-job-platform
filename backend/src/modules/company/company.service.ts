@@ -12,6 +12,7 @@ import { TTL } from "../../core/redis/ttl.constants";
 import { AppError, ConflictError, ForbiddenError, NotFoundError } from "../../core/errors/AppError";
 import { uploadToCloudinary, deleteFromCloudinary } from "../../core/utils/cloudinary";
 import { generateToken, hashToken } from "../../shared/utils/crypto.utils";
+import { withTimingFloor } from "../../core/utils/timingFloor";
 
 const INVITE_TOKEN_EXPIRES_MS = 48 * 60 * 60 * 1000; // 48 hours
 
@@ -74,53 +75,57 @@ export class CompanyService {
   }
 
   async inviteMember(ownerUserId: string, email: string): Promise<{ message: string }> {
-    const company = await this.resolveCompanyAsOwner(ownerUserId);
+    return withTimingFloor(200, async () => {
+      const company = await this.resolveCompanyAsOwner(ownerUserId);
 
-    const existingUser = await this.companyRepository.findUserByEmail(email);
-    if (existingUser) {
-      const existingMember = await this.companyRepository.findMemberByUserId(company.id, existingUser.id);
-      if (existingMember) throw new ConflictError("This user is already a member of your company.");
-    }
+      const existingUser = await this.companyRepository.findActiveUserByEmail(email);
+      if (existingUser) {
+        const existingMember = await this.companyRepository.findMemberByUserId(company.id, existingUser.id);
+        if (existingMember) throw new ConflictError("This user is already a member of your company.");
+      }
 
-    // Delete any existing pending invite so the unique constraint doesn't block resends
-    const existingInvite = await this.companyRepository.findInviteByEmail(company.id, email);
-    if (existingInvite) await this.companyRepository.deleteInvite(existingInvite.id);
+      // Delete any existing pending invite so the unique constraint doesn't block resends
+      const existingInvite = await this.companyRepository.findInviteByEmail(company.id, email);
+      if (existingInvite) await this.companyRepository.deleteInvite(existingInvite.id);
 
-    const rawToken = generateToken();
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + INVITE_TOKEN_EXPIRES_MS);
+      const rawToken = generateToken();
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + INVITE_TOKEN_EXPIRES_MS);
 
-    await this.companyRepository.createInvite(company.id, email, tokenHash, expiresAt);
-    await this.emailQueue.enqueueCompanyInviteEmail(email, rawToken, company.name);
+      await this.companyRepository.createInvite(company.id, email, tokenHash, expiresAt);
+      await this.emailQueue.enqueueCompanyInviteEmail(email, rawToken, company.name);
 
-    return { message: `Invite sent to ${email}.` };
+      return { message: `Invite sent to ${email}.` };
+    });
   }
 
   async acceptInvite(rawToken: string): Promise<{ message: string }> {
-    const tokenHash = hashToken(rawToken);
-    const invite = await this.companyRepository.findInviteByTokenHash(tokenHash);
-    if (!invite) throw new AppError("Invalid or expired invite token.", 400, "INVALID_TOKEN");
+    return withTimingFloor(200, async () => {
+      const tokenHash = hashToken(rawToken);
+      const invite = await this.companyRepository.findInviteByTokenHash(tokenHash);
+      if (!invite) throw new AppError("Invalid or expired invite token.", 400, "INVALID_TOKEN");
 
-    const user = await this.companyRepository.findUserByEmail(invite.email);
-    if (!user) {
-      throw new AppError(
-        "No company account found for this email. Please register first.",
-        400,
-        "ACCOUNT_NOT_FOUND",
-      );
-    }
-    if (user.role !== "company") {
-      throw new ForbiddenError("Only company accounts can join a team.");
-    }
+      const user = await this.companyRepository.findActiveUserByEmail(invite.email);
+      if (!user) {
+        throw new AppError(
+          "No company account found for this email. Please register first.",
+          400,
+          "ACCOUNT_NOT_FOUND",
+        );
+      }
+      if (user.role !== "company") {
+        throw new ForbiddenError("Only company accounts can join a team.");
+      }
 
-    const existingMember = await this.companyRepository.findMemberByUserId(invite.company_id, user.id);
-    if (existingMember) {
-      await this.companyRepository.deleteInvite(invite.id);
-      return { message: "You are already a member of this company." };
-    }
+      const existingMember = await this.companyRepository.findMemberByUserId(invite.company_id, user.id);
+      if (existingMember) {
+        await this.companyRepository.deleteInvite(invite.id);
+        return { message: "You are already a member of this company." };
+      }
 
-    await this.companyRepository.acceptInvite(invite.id, invite.company_id, user.id);
-    return { message: "You have successfully joined the company." };
+      await this.companyRepository.acceptInvite(invite.id, invite.company_id, user.id);
+      return { message: "You have successfully joined the company." };
+    });
   }
 
   async transferOwnership(ownerUserId: string, newOwnerUserId: string): Promise<void> {
