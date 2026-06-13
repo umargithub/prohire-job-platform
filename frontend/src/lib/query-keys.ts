@@ -11,7 +11,9 @@ export const queryKeys = {
   company: {
     profile: () => ['company', 'profile'] as const,
     jobs: () => ['company', 'jobs'] as const,
+    job: (id: string) => ['company', 'jobs', id] as const,
     members: () => ['company', 'members'] as const,
+    applicationDetail: (id: string) => ['company', 'applications', id] as const,
   },
   admin: {
     stats: () => ['admin', 'stats'] as const,

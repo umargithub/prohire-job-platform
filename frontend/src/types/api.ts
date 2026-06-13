@@ -146,6 +146,11 @@ export interface CompanyResponse {
   updatedAt: string;
 }
 
+export interface CompanyJobsResponse {
+  data: JobResponse[];
+  total: number;
+}
+
 export interface CompanyMemberResponse {
   id: string;
   role: CompanyMemberRole;

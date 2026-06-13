@@ -101,7 +101,8 @@ export class CompanyController {
   listJobs = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const rows = await this.companyService.listJobs(req.user!.userId);
-      res.status(200).json({ success: true, data: rows.map(toJobResponse) });
+      const data = rows.map(toJobResponse);
+      res.status(200).json({ success: true, data: { data, total: data.length } });
     },
   );
 
