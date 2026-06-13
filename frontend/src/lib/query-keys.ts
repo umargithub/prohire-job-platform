@@ -2,7 +2,6 @@ export const queryKeys = {
   jobs: {
     list: (filters: Record<string, unknown>) => ['jobs', 'list', filters] as const,
     detail: (id: string) => ['jobs', id] as const,
-    applications: (jobId: string, page: number) => ['jobs', jobId, 'applications', page] as const,
   },
   candidate: {
     profile: () => ['candidate', 'profile'] as const,
@@ -13,6 +12,7 @@ export const queryKeys = {
     jobs: () => ['company', 'jobs'] as const,
     job: (id: string) => ['company', 'jobs', id] as const,
     members: () => ['company', 'members'] as const,
+    applications: (jobId: string, page: number) => ['company', 'applications', jobId, page] as const,
     applicationDetail: (id: string) => ['company', 'applications', id] as const,
   },
   admin: {
