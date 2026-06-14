@@ -35,7 +35,13 @@ apiClient.interceptors.response.use(
   async (err: AxiosError) => {
     const originalRequest = err.config;
 
-    if (err.response?.status !== 401 || !originalRequest) {
+    const url = originalRequest?.url ?? "";
+    if (
+      err.response?.status !== 401 ||
+      !originalRequest ||
+      url.includes("/auth/login") ||
+      url.includes("/auth/refresh")
+    ) {
       return Promise.reject(err);
     }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +9,8 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerCompany } from '@/lib/api/auth';
+import { useAuthStore, useAuthHydrated } from '@/store/auth.store';
+import { ROLE_REDIRECTS } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +29,13 @@ type FormValues = z.infer<typeof schema>;
 
 export default function RegisterCompanyPage(): JSX.Element {
   const router = useRouter();
+  const { accessToken, user } = useAuthStore();
+  const hydrated = useAuthHydrated();
+
+  useEffect(() => {
+    if (!hydrated || !accessToken || !user) return;
+    router.replace(ROLE_REDIRECTS[user.role]);
+  }, [hydrated, accessToken, user, router]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -43,6 +53,9 @@ export default function RegisterCompanyPage(): JSX.Element {
       toast.error(message);
     },
   });
+
+  if (!hydrated) return null;
+  if (accessToken && user) return null;
 
   return (
     <Card>
