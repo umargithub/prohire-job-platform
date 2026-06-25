@@ -1,7 +1,7 @@
 import { config } from "../../../config";
 
 export function verifyEmailTemplate(token: string): { subject: string; html: string } {
-  const url = `${config.FRONTEND_URL}/auth/verify-email?token=${token}`;
+  const url = `${config.FRONTEND_URL}/verify-email?token=${token}`;
   return {
     subject: "Verify your ProHire email",
     html: `

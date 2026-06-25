@@ -11,32 +11,78 @@ import { useResendCooldown } from '@/hooks/use-resend-cooldown';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 
-type VerifyState = 'verifying' | 'success' | 'error' | 'pending';
+type TokenState = 'verifying' | 'success' | 'error';
 
-export default function VerifyEmailPage(): JSX.Element {
-  const searchParams = useSearchParams();
+// ── Token mode (/verify-email?token=...) ─────────────────────────────────────
+
+function TokenVerification({ token }: { token: string }): JSX.Element {
   const router = useRouter();
-  const token = searchParams.get('token');
-  const email = searchParams.get('email');
-  const [state, setState] = useState<VerifyState>(token ? 'verifying' : 'pending');
-  const { secondsLeft, canResend, markSent } = useResendCooldown();
+  const [state, setState] = useState<TokenState>('verifying');
 
   useEffect(() => {
-    if (!token) return;
-    apiClient.get(`/auth/verify-email?token=${token}`)
-      .then(() => {
+    apiClient.get<{ message: string }>(`/auth/verify-email?token=${token}`)
+      .then(({ data }) => {
+        if (data.message === 'Email already verified.') {
+          toast.info('Your email is already verified. Please sign in.');
+          router.replace('/login');
+          return;
+        }
+        localStorage.setItem('prohire:email-verified', 'true');
         setState('success');
         toast.success('Email verified! You can now sign in.');
         setTimeout(() => router.push('/login'), 2000);
       })
-      .catch(() => {
-        setState('error');
-      });
+      .catch(() => setState('error'));
   }, [token, router]);
 
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {state === 'verifying' && 'Verifying your email…'}
+          {state === 'success' && 'Email verified!'}
+          {state === 'error' && 'Verification failed'}
+        </CardTitle>
+        <CardDescription>
+          {state === 'verifying' && 'Please wait while we verify your email address.'}
+          {state === 'success' && 'Redirecting you to login…'}
+          {state === 'error' && 'The link may have expired or already been used.'}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter>
+        <p className="text-xs text-muted-foreground text-center w-full">
+          <Link href="/login" className="text-foreground hover:underline">Back to sign in</Link>
+        </p>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ── Email mode (/verify-email?email=...) ─────────────────────────────────────
+
+function PendingVerification({ email }: { email: string }): JSX.Element {
+  const router = useRouter();
+  const { mounted, secondsLeft, canResend, exhausted, markSent } = useResendCooldown();
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'prohire:email-verified' && e.newValue === 'true') {
+        toast.info('Your email has been verified. Please sign in.');
+        router.replace('/login');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [router]);
+
   const { mutate: resend, isPending: resending } = useMutation({
-    mutationFn: () => resendVerification(email ?? ''),
-    onSuccess: () => {
+    mutationFn: () => resendVerification(email),
+    onSuccess: (data: { message: string; alreadyVerified?: boolean }) => {
+      if (data.alreadyVerified) {
+        toast.info('Your email is already verified. Please sign in.');
+        router.replace('/login');
+        return;
+      }
       markSent();
       toast.success('Verification email sent.');
     },
@@ -48,38 +94,53 @@ export default function VerifyEmailPage(): JSX.Element {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {state === 'verifying' && 'Verifying your email…'}
-          {state === 'success' && 'Email verified!'}
-          {state === 'error' && 'Verification failed'}
-          {state === 'pending' && 'Check your email'}
-        </CardTitle>
-        <CardDescription>
-          {state === 'verifying' && 'Please wait while we verify your email address.'}
-          {state === 'success' && 'Redirecting you to login…'}
-          {state === 'error' && 'The link may have expired or already been used.'}
-          {state === 'pending' && `We sent a verification link to ${email ?? 'your email'}.`}
-        </CardDescription>
+        <CardTitle>Check your email</CardTitle>
+        <CardDescription>We sent a verification link to {email}.</CardDescription>
       </CardHeader>
-
-      {(state === 'error' || state === 'pending') && email && (
+      {mounted && (
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">Didn&apos;t receive the email?</p>
-          <Button
-            className="w-full"
-            variant="outline"
-            disabled={!canResend || resending}
-            onClick={() => resend()}
-          >
-            {resending
-              ? 'Sending…'
-              : canResend
-              ? 'Resend verification email'
-              : `Resend in ${secondsLeft}s`}
-          </Button>
+          {exhausted ? (
+            <p className="text-sm text-muted-foreground text-center">
+              Maximum resends reached. Please check your spam folder or contact support.
+            </p>
+          ) : (
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={!canResend || resending}
+              onClick={() => resend()}
+            >
+              {resending ? 'Sending…' : canResend ? 'Resend verification email' : `Resend in ${secondsLeft}s`}
+            </Button>
+          )}
         </CardContent>
       )}
+      <CardFooter>
+        <p className="text-xs text-muted-foreground text-center w-full">
+          <Link href="/login" className="text-foreground hover:underline">Back to sign in</Link>
+        </p>
+      </CardFooter>
+    </Card>
+  );
+}
 
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export default function VerifyEmailPage(): JSX.Element {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
+  const email = searchParams.get('email');
+
+  if (token) return <TokenVerification token={token} />;
+  if (email) return <PendingVerification email={email} />;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Invalid link</CardTitle>
+        <CardDescription>This verification link is missing required parameters.</CardDescription>
+      </CardHeader>
       <CardFooter>
         <p className="text-xs text-muted-foreground text-center w-full">
           <Link href="/login" className="text-foreground hover:underline">Back to sign in</Link>

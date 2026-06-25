@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import type { Redis } from "ioredis";
 import { AuthRepository } from "./auth.repository";
 import {
   RegisterInput,
@@ -16,6 +17,9 @@ import {
   UnauthorizedError,
 } from "../../core/errors/AppError";
 import { withTimingFloor } from "../../core/utils/timingFloor";
+import { TTL } from "../../core/redis/ttl.constants";
+
+const MAX_RESENDS_PER_DAY = 3;
 
 const BCRYPT_ROUNDS = 12;
 
@@ -30,6 +34,7 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly emailQueue: EmailQueue,
     private readonly db: DatabaseClient,
+    private readonly redis: Redis,
   ) {}
 
   async registerCandidate(input: RegisterInput): Promise<{ message: string }> {
@@ -78,14 +83,27 @@ export class AuthService {
 
   async resendVerificationEmail(
     input: ResendVerificationInput,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; alreadyVerified?: true }> {
     const SAFE_MESSAGE =
       "If that email exists and is unverified, a new verification email has been sent.";
 
     return withTimingFloor(200, async () => {
       const user = await this.authRepository.findActiveByEmail(input.email);
 
-      if (!user || user.is_verified) {
+      if (!user) {
+        return { message: SAFE_MESSAGE };
+      }
+
+      if (user.is_verified) {
+        return { message: "Your email is already verified.", alreadyVerified: true };
+      }
+
+      const resendKey = `prohire:resend-count:${user.id}`;
+      const count = await this.redis.incr(resendKey);
+      if (count === 1) {
+        await this.redis.expire(resendKey, TTL.RESEND_VERIFICATION);
+      }
+      if (count > MAX_RESENDS_PER_DAY) {
         return { message: SAFE_MESSAGE };
       }
 
@@ -137,20 +155,27 @@ export class AuthService {
 
   async verifyEmail(rawToken: string): Promise<{ message: string }> {
     const tokenHash = hashToken(rawToken);
-    const tokenRow = await this.authRepository.findVerificationToken(tokenHash);
 
-    if (!tokenRow) {
-      throw new AppError(
-        "Invalid or expired verification token",
-        400,
-        "INVALID_TOKEN",
-      );
-    }
+    return this.db.transaction(async (tx) => {
+      const consumed = await this.authRepository.consumeVerificationToken(tokenHash, tx);
 
-    await this.authRepository.markEmailVerified(tokenRow.user_id);
-    await this.authRepository.deleteVerificationToken(tokenRow.id);
+      if (!consumed) {
+        const existing = await this.authRepository.findVerificationTokenAny(tokenHash, tx);
 
-    return { message: "Email verified successfully." };
+        if (!existing) {
+          throw new AppError("Invalid or expired verification token", 400, "INVALID_TOKEN");
+        }
+
+        const user = await this.authRepository.findActiveById(existing.user_id, tx);
+        if (user?.is_verified) return { message: "Email already verified." };
+
+        throw new AppError("Invalid or expired verification token", 400, "INVALID_TOKEN");
+      }
+
+      await this.authRepository.markEmailVerified(consumed.user_id, tx);
+
+      return { message: "Email verified successfully." };
+    });
   }
 
   async refresh(rawToken: string): Promise<{

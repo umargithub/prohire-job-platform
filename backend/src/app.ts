@@ -16,6 +16,7 @@ import { NotFoundError } from "./core/errors/AppError";
 import { openApiSpec } from "./core/docs/openapi";
 import { container } from "./core/container/container";
 import { db } from "./core/database/db";
+import { redis } from "./core/redis/redis";
 import { EmailQueue } from "./core/queue/email.queue";
 import { AuthRepository } from "./modules/auth/auth.repository";
 import { AuthService } from "./modules/auth/auth.service";
@@ -98,6 +99,7 @@ container.register(
       container.resolve<AuthRepository>("authRepository"),
       container.resolve<EmailQueue>("emailQueue"),
       db,
+      redis,
     ),
 );
 container.register(

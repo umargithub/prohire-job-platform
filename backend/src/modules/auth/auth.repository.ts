@@ -13,8 +13,9 @@ export class AuthRepository {
     return result.rows[0] ?? null;
   }
 
-  async findActiveById(id: string): Promise<UserRow | null> {
-    const result = await this.db.query<UserRow>(
+  async findActiveById(id: string, tx?: PoolClient): Promise<UserRow | null> {
+    const client = tx ?? this.db;
+    const result = await client.query<UserRow>(
       "SELECT * FROM users WHERE id = $1 AND is_deleted = FALSE",
       [id],
     );
@@ -39,8 +40,9 @@ export class AuthRepository {
     return result.rows[0]!;
   }
 
-  async markEmailVerified(userId: string): Promise<void> {
-    await this.db.query(
+  async markEmailVerified(userId: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query(
       "UPDATE users SET is_verified = TRUE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE",
       [userId],
     );
@@ -76,6 +78,24 @@ export class AuthRepository {
   async findVerificationToken(tokenHash: string): Promise<TokenRow | null> {
     const result = await this.db.query<TokenRow>(
       "SELECT * FROM verification_tokens WHERE token_hash = $1 AND expires_at > NOW()",
+      [tokenHash],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findVerificationTokenAny(tokenHash: string, tx?: PoolClient): Promise<TokenRow | null> {
+    const client = tx ?? this.db;
+    const result = await client.query<TokenRow>(
+      "SELECT * FROM verification_tokens WHERE token_hash = $1",
+      [tokenHash],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async consumeVerificationToken(tokenHash: string, tx?: PoolClient): Promise<TokenRow | null> {
+    const client = tx ?? this.db;
+    const result = await client.query<TokenRow>(
+      "UPDATE verification_tokens SET consumed_at = NOW() WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > NOW() RETURNING *",
       [tokenHash],
     );
     return result.rows[0] ?? null;

@@ -27,7 +27,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function RegisterCompanyPage(): JSX.Element {
+export default function RegisterCompanyPage(): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
   const hydrated = useAuthHydrated();
@@ -44,6 +44,8 @@ export default function RegisterCompanyPage(): JSX.Element {
   const { mutate, isPending } = useMutation({
     mutationFn: (values: FormValues) => registerCompany(values.email, values.password),
     onSuccess: (_, variables) => {
+      localStorage.setItem('prohire:resend-sent-at', String(Date.now()));
+      localStorage.setItem('prohire:resend-count', '1');
       toast.success('Account created! Please check your email to verify.');
       router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
     },

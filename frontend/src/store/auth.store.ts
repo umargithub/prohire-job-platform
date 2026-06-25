@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>()(
 );
 
 export function useAuthHydrated(): boolean {
-  const [hydrated, setHydrated] = useState(() => useAuthStore.persist.hasHydrated());
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (useAuthStore.persist.hasHydrated()) {

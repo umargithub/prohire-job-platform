@@ -13,6 +13,7 @@ export interface TokenRow {
   user_id: string;
   token_hash: string;
   expires_at: Date;
+  consumed_at: Date | null;
   created_at: Date;
 }
 

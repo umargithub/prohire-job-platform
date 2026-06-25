@@ -30,7 +30,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function LoginPage(): JSX.Element {
+export default function LoginPage(): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user, setAuth } = useAuthStore();
   const hydrated = useAuthHydrated();
