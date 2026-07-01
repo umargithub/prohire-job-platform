@@ -1,9 +1,11 @@
 import axios, { type AxiosError } from "axios";
 import { useAuthStore, type AuthUser } from "@/store/auth.store";
 
+export const BASE_URL =
+  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1";
+
 export const apiClient = axios.create({
-  baseURL:
-    (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1",
+  baseURL: BASE_URL,
   withCredentials: true,
 });
 
@@ -58,17 +60,12 @@ apiClient.interceptors.response.use(
 
     try {
       const { data } = await axios.post<{
-        accessToken: string;
-        user: AuthUser;
-      }>(
-        (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") +
-          "/api/v1/auth/refresh",
-        {},
-        { withCredentials: true },
-      );
-      useAuthStore.getState().setAuth(data.accessToken, data.user);
-      processQueue(null, data.accessToken);
-      originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        success: true;
+        data: { accessToken: string; user: AuthUser };
+      }>(BASE_URL + "/auth/refresh", {}, { withCredentials: true });
+      useAuthStore.getState().setAuth(data.data.accessToken, data.data.user);
+      processQueue(null, data.data.accessToken);
+      originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
       return apiClient.request(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
