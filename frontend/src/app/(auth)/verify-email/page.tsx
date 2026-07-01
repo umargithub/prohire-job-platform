@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -60,13 +60,9 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
 
 // ── Email mode (/verify-email?email=...) ─────────────────────────────────────
 
-const RATE_LIMITED_MESSAGE =
-  'If that email exists and is unverified, a new verification email has been sent.';
-
 function PendingVerification({ email }: { email: string }): JSX.Element {
   const router = useRouter();
-  const [rateLimited, setRateLimited] = useState(false);
-  const { mounted, secondsLeft, canResend, markSent } = useResendCooldown();
+  const { mounted, secondsLeft, canResend, exhausted, markSent } = useResendCooldown();
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -88,11 +84,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
         return;
       }
       markSent();
-      if (data.message === RATE_LIMITED_MESSAGE) {
-        setRateLimited(true);
-        return;
-      }
-      toast.success('Verification email sent.');
+      toast.success('Verification email sent. Check your spam folder if you don\'t see it.');
     },
     onError: () => {
       toast.error('Failed to resend. Please try again later.');
@@ -108,7 +100,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
       {mounted && (
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">Didn&apos;t receive the email?</p>
-          {rateLimited ? (
+          {exhausted ? (
             <p className="text-sm text-muted-foreground text-center">
               Maximum resends reached. Please check your spam folder or contact support.
             </p>
