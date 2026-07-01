@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { login } from "@/lib/api/auth";
-import { useAuthStore, useAuthHydrated } from "@/store/auth.store";
+import { useAuthStore, useAuthInitialized } from "@/store/auth.store";
 import { ROLE_REDIRECTS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage(): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user, setAuth } = useAuthStore();
-  const hydrated = useAuthHydrated();
+  const hydrated = useAuthInitialized();
 
   useEffect(() => {
     if (!hydrated || !accessToken || !user) return;
@@ -54,11 +54,14 @@ export default function LoginPage(): JSX.Element | null {
       setAuth(data.accessToken, data.user);
       router.push(ROLE_REDIRECTS[data.user.role]);
     },
-    onError: (err: unknown) => {
-      const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })
-          ?.response?.data?.error?.message ?? "Login failed";
-      toast.error(message);
+    onError: (err: unknown, variables) => {
+      const error = (err as { response?: { data?: { error?: { code?: string; message?: string } } } })
+        ?.response?.data?.error;
+      if (error?.code === "EMAIL_NOT_VERIFIED") {
+        router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
+        return;
+      }
+      toast.error(error?.message ?? "Login failed");
     },
   });
 
