@@ -48,8 +48,9 @@ export class AuthRepository {
     );
   }
 
-  async updatePassword(userId: string, passwordHash: string): Promise<void> {
-    await this.db.query(
+  async updatePassword(userId: string, passwordHash: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query(
       "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE",
       [passwordHash, userId],
     );
@@ -69,8 +70,9 @@ export class AuthRepository {
     );
   }
 
-  async deleteUserVerificationTokens(userId: string): Promise<void> {
-    await this.db.query("DELETE FROM verification_tokens WHERE user_id = $1", [
+  async deleteUserVerificationTokens(userId: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query("DELETE FROM verification_tokens WHERE user_id = $1", [
       userId,
     ]);
   }
@@ -109,8 +111,10 @@ export class AuthRepository {
     userId: string,
     tokenHash: string,
     expiresAt: Date,
+    tx?: PoolClient,
   ): Promise<void> {
-    await this.db.query(
+    const client = tx ?? this.db;
+    await client.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
        VALUES ($1, $2, $3)`,
       [userId, tokenHash, expiresAt],
@@ -129,8 +133,9 @@ export class AuthRepository {
     return result.rows[0] ?? null;
   }
 
-  async deleteRefreshToken(tokenHash: string): Promise<void> {
-    await this.db.query("DELETE FROM refresh_tokens WHERE token_hash = $1", [
+  async deleteRefreshToken(tokenHash: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query("DELETE FROM refresh_tokens WHERE token_hash = $1", [
       tokenHash,
     ]);
   }
@@ -139,8 +144,10 @@ export class AuthRepository {
     userId: string,
     tokenHash: string,
     expiresAt: Date,
+    tx?: PoolClient,
   ): Promise<void> {
-    await this.db.query(
+    const client = tx ?? this.db;
+    await client.query(
       `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
        VALUES ($1, $2, $3)`,
       [userId, tokenHash, expiresAt],
@@ -155,14 +162,16 @@ export class AuthRepository {
     return result.rows[0] ?? null;
   }
 
-  async deletePasswordResetToken(id: string): Promise<void> {
-    await this.db.query("DELETE FROM password_reset_tokens WHERE id = $1", [
+  async deletePasswordResetToken(id: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query("DELETE FROM password_reset_tokens WHERE id = $1", [
       id,
     ]);
   }
 
-  async deleteUserPasswordResetTokens(userId: string): Promise<void> {
-    await this.db.query(
+  async deleteUserPasswordResetTokens(userId: string, tx?: PoolClient): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query(
       "DELETE FROM password_reset_tokens WHERE user_id = $1",
       [userId],
     );

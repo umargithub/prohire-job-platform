@@ -8,12 +8,6 @@ const COUNT_RESET_AT_KEY = 'prohire:resend-count-reset-at';
 const MAX_RESENDS = 3;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export function initResendState(): void {
-  const now = Date.now();
-  localStorage.setItem(SENT_AT_KEY, String(now));
-  localStorage.setItem(COUNT_KEY, '1');
-  localStorage.setItem(COUNT_RESET_AT_KEY, String(now + WINDOW_MS));
-}
 
 function getCount(): number {
   const resetAt = Number(localStorage.getItem(COUNT_RESET_AT_KEY) ?? 0);

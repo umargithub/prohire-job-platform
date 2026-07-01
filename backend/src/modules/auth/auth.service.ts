@@ -18,6 +18,7 @@ import {
 } from "../../core/errors/AppError";
 import { withTimingFloor } from "../../core/utils/timingFloor";
 import { TTL } from "../../core/redis/ttl.constants";
+import { incrementWithTTL } from "../../core/redis/rate-limit";
 
 const MAX_RESENDS_PER_DAY = 3;
 
@@ -99,10 +100,7 @@ export class AuthService {
       }
 
       const resendKey = `prohire:resend-count:${user.id}`;
-      const count = await this.redis.incr(resendKey);
-      if (count === 1) {
-        await this.redis.expire(resendKey, TTL.RESEND_VERIFICATION);
-      }
+      const count = await incrementWithTTL(this.redis, resendKey, TTL.RESEND_VERIFICATION);
       if (count > MAX_RESENDS_PER_DAY) {
         return { message: SAFE_MESSAGE };
       }
@@ -111,8 +109,10 @@ export class AuthService {
       const tokenHash = hashToken(rawToken);
       const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_EXPIRES_MS);
 
-      await this.authRepository.deleteUserVerificationTokens(user.id);
-      await this.authRepository.saveVerificationToken(user.id, tokenHash, expiresAt);
+      await this.db.transaction(async (tx) => {
+        await this.authRepository.deleteUserVerificationTokens(user.id, tx);
+        await this.authRepository.saveVerificationToken(user.id, tokenHash, expiresAt, tx);
+      });
       await this.emailQueue.enqueueVerificationEmail(user.email, rawToken);
 
       return { message: SAFE_MESSAGE };
@@ -190,17 +190,15 @@ export class AuthService {
       throw new UnauthorizedError("Invalid or expired refresh token");
     }
 
-    // Rotate: delete old token, issue new one
-    await this.authRepository.deleteRefreshToken(tokenHash);
-
     const newRawToken = generateToken();
     const newTokenHash = hashToken(newRawToken);
     const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_MS);
-    await this.authRepository.saveRefreshToken(
-      tokenRow.user_id,
-      newTokenHash,
-      newExpiresAt,
-    );
+
+    // Rotate: delete old token, issue new one atomically
+    await this.db.transaction(async (tx) => {
+      await this.authRepository.deleteRefreshToken(tokenHash, tx);
+      await this.authRepository.saveRefreshToken(tokenRow.user_id, newTokenHash, newExpiresAt, tx);
+    });
 
     const accessToken = generateAccessToken({
       userId: tokenRow.user_id,
@@ -231,12 +229,14 @@ export class AuthService {
       const user = await this.authRepository.findActiveByEmail(email);
       if (!user) return { message: SAFE_MESSAGE };
 
-      await this.authRepository.deleteUserPasswordResetTokens(user.id);
-
       const rawToken = generateToken();
       const tokenHash = hashToken(rawToken);
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MS);
-      await this.authRepository.savePasswordResetToken(user.id, tokenHash, expiresAt);
+
+      await this.db.transaction(async (tx) => {
+        await this.authRepository.deleteUserPasswordResetTokens(user.id, tx);
+        await this.authRepository.savePasswordResetToken(user.id, tokenHash, expiresAt, tx);
+      });
       await this.emailQueue.enqueuePasswordResetEmail(user.email, rawToken);
 
       return { message: SAFE_MESSAGE };
@@ -259,9 +259,12 @@ export class AuthService {
       );
     }
 
-    await this.authRepository.deletePasswordResetToken(tokenRow.id);
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-    await this.authRepository.updatePassword(tokenRow.user_id, passwordHash);
+
+    await this.db.transaction(async (tx) => {
+      await this.authRepository.deletePasswordResetToken(tokenRow.id, tx);
+      await this.authRepository.updatePassword(tokenRow.user_id, passwordHash, tx);
+    });
 
     return { message: "Password reset successfully." };
   }

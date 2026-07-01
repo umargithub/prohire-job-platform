@@ -13,7 +13,7 @@ import {
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: config.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  sameSite: (config.NODE_ENV === "production" ? "strict" : "lax") as "strict" | "lax",
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/api/v1/auth",
 };

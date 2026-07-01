@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore, useAuthHydrated } from "@/store/auth.store";
+import { useAuthStore, useAuthInitialized } from "@/store/auth.store";
 import { isAdminRole } from "@/lib/permissions";
 import type { UserRole } from "@/types/api";
 
@@ -20,10 +20,10 @@ interface AuthGuardProps {
 export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
-  const hydrated = useAuthHydrated();
+  const initialized = useAuthInitialized();
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!initialized) return;
     if (!accessToken || !user) {
       router.replace("/login");
       return;
@@ -32,9 +32,9 @@ export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | nul
       const allowed = Array.isArray(role) ? role : [role];
       if (!allowed.includes(user.role as UserRole)) router.replace("/");
     }
-  }, [hydrated, accessToken, user, role, router]);
+  }, [initialized, accessToken, user, role, router]);
 
-  if (!hydrated) return <Spinner />;
+  if (!initialized) return <Spinner />;
   if (!accessToken || !user) return null;
   if (role) {
     const allowed = Array.isArray(role) ? role : [role];
@@ -47,18 +47,18 @@ export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | nul
 export function AdminGuard({ children }: { children: React.ReactNode }): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
-  const hydrated = useAuthHydrated();
+  const initialized = useAuthInitialized();
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!initialized) return;
     if (!accessToken || !user) {
       router.replace("/login");
       return;
     }
     if (!isAdminRole(user.role as UserRole)) router.replace("/");
-  }, [hydrated, accessToken, user, router]);
+  }, [initialized, accessToken, user, router]);
 
-  if (!hydrated) return <Spinner />;
+  if (!initialized) return <Spinner />;
   if (!accessToken || !user || !isAdminRole(user.role as UserRole)) return null;
 
   return <>{children}</>;

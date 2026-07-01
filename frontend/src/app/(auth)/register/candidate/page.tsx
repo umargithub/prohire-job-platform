@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { registerCandidate } from "@/lib/api/auth";
-import { initResendState } from "@/hooks/use-resend-cooldown";
 import { useAuthStore, useAuthInitialized } from "@/store/auth.store";
 import { ROLE_REDIRECTS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -59,7 +58,8 @@ export default function RegisterCandidatePage(): JSX.Element | null {
     mutationFn: (values: FormValues) =>
       registerCandidate(values.email, values.password),
     onSuccess: (_, variables) => {
-      initResendState();
+      localStorage.setItem('prohire:resend-sent-at', String(Date.now()));
+      localStorage.setItem('prohire:resend-count', '1');
       toast.success("Account created! Please check your email to verify.");
       router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
     },
