@@ -59,7 +59,6 @@ export default function RegisterCandidatePage(): JSX.Element | null {
       registerCandidate(values.email, values.password),
     onSuccess: (_, variables) => {
       localStorage.setItem('prohire:resend-sent-at', String(Date.now()));
-      localStorage.setItem('prohire:resend-count', '1');
       toast.success("Account created! Please check your email to verify.");
       router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
     },

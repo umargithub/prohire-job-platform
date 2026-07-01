@@ -84,7 +84,7 @@ export class AuthService {
 
   async resendVerificationEmail(
     input: ResendVerificationInput,
-  ): Promise<{ message: string; alreadyVerified?: true }> {
+  ): Promise<{ message: string; alreadyVerified?: true; rateLimited?: true }> {
     const SAFE_MESSAGE =
       "If that email exists and is unverified, a new verification email has been sent.";
 
@@ -102,7 +102,7 @@ export class AuthService {
       const resendKey = `prohire:resend-count:${user.id}`;
       const count = await incrementWithTTL(this.redis, resendKey, TTL.RESEND_VERIFICATION);
       if (count > MAX_RESENDS_PER_DAY) {
-        return { message: SAFE_MESSAGE };
+        return { message: SAFE_MESSAGE, rateLimited: true };
       }
 
       const rawToken = generateToken();

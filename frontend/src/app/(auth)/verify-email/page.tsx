@@ -62,7 +62,8 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
 
 function PendingVerification({ email }: { email: string }): JSX.Element {
   const router = useRouter();
-  const { mounted, secondsLeft, canResend, exhausted, markSent } = useResendCooldown();
+  const [rateLimited, setRateLimited] = useState(false);
+  const { mounted, secondsLeft, canResend, markSent } = useResendCooldown();
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -77,10 +78,14 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
 
   const { mutate: resend, isPending: resending } = useMutation({
     mutationFn: () => resendVerification(email),
-    onSuccess: (data: { message: string; alreadyVerified?: boolean }) => {
+    onSuccess: (data: { message: string; alreadyVerified?: boolean; rateLimited?: boolean }) => {
       if (data.alreadyVerified) {
         toast.info('Your email is already verified. Please sign in.');
         router.replace('/login');
+        return;
+      }
+      if (data.rateLimited) {
+        setRateLimited(true);
         return;
       }
       markSent();
@@ -100,7 +105,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
       {mounted && (
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">Didn&apos;t receive the email?</p>
-          {exhausted ? (
+          {rateLimited ? (
             <p className="text-sm text-muted-foreground text-center">
               Maximum resends reached. Please check your spam folder or contact support.
             </p>
