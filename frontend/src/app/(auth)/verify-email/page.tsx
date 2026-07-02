@@ -23,6 +23,7 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
     apiClient.get<{ message: string }>(`/auth/verify-email?token=${token}`)
       .then(({ data }) => {
         if (data.message === 'Email already verified.') {
+          localStorage.setItem('prohire:email-verified', 'true');
           toast.info('Your email is already verified. Please sign in.');
           router.replace('/login');
           return;
