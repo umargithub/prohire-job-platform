@@ -56,6 +56,34 @@ Clearing all refresh tokens for a user on every login enforces one active sessio
 
 ---
 
+## Known limitation: concurrent multi-tab refresh can log out one tab
+
+### What the gap is
+
+Two things guarantee correctness under concurrent refresh:
+
+- **Client (per tab)** — `refreshSession` is single-flight, so a burst of 401s _within one tab_ triggers exactly one `POST /auth/refresh`.
+- **Server** — atomic compare-and-swap rotation (`consumeRefreshToken`) guarantees that of N concurrent refreshes carrying the same token, exactly one wins; the rest are rejected with `401`.
+
+The single-flight guard is per browser tab, but the refresh-token cookie is shared across all tabs. So when two tabs refresh within the same few milliseconds — most commonly on **browser session restore**, when several tabs bootstrap at once — both send the same token, the server rotates for the winner, and the losing tab receives a `401`. The client cannot tell "the token was rotated 20 ms ago by a sibling tab" from "the session is genuinely dead," so it treats the `401` as logout and redirects the losing tab to `/login`.
+
+The session is **not** actually invalid — the cookie now holds the winner's freshly rotated token — so reloading the logged-out tab immediately logs back in.
+
+### Why this is acceptable as-is
+
+Authentication remains **correct and secure**: single-use rotation holds, no token is orphaned or duplicated, nothing leaks. This is purely a **UX defect** (a rare, self-correcting spurious logout), not a security hole.
+
+### Options considered (and why deferred)
+
+- **Client retries the `401`** — rejected. It overloads `401` (which legitimately also means expired / revoked / logged-out-elsewhere) and makes the client guess the backend's rejection reason. Wrong layer to own that decision.
+- **Accepting grace window** — keep a rotated token valid for a few seconds. Rejected: it weakens single-use rotation and fights future reuse detection.
+- **Signal-only rotated record (`409 CONCURRENT_REFRESH`)** — retain recently-rotated hashes so the server can answer "stale-but-valid, retry" vs. "dead, log out." Clean, but needs a migration + cleanup TTL.
+- **Session/token-family model** — a `sessions` row with a rotating current-token pointer. The most robust option; it would also subsume logout-everywhere and reuse detection. But it is a substantial change (new table, migration, rotation refactor).
+
+All of these solve a problem almost no user of a portfolio job board will hit. The proportionate decision is to leave the behavior documented and revisit **only if cross-tab / multi-device session management becomes a product requirement** — at which point the session-family model is the natural home for this fix, logout-everywhere, and reuse detection together.
+
+---
+
 ## Known limitation: no transactional outbox for email
 
 ### What the gap is
