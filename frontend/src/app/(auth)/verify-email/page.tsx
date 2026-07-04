@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -11,43 +11,47 @@ import { EMAIL_VERIFIED_KEY } from '@/lib/storage-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 
-type TokenState = 'verifying' | 'success' | 'error';
-
 // ── Token mode (/verify-email?token=...) ─────────────────────────────────────
 
 function TokenVerification({ token }: { token: string }): JSX.Element {
   const router = useRouter();
-  const [state, setState] = useState<TokenState>('verifying');
+  // Guards against React StrictMode's double effect invocation in dev. Not a
+  // correctness mechanism — the backend consume is idempotent (200 on re-hit).
+  const attempted = useRef(false);
+
+  const { mutate, isError, isSuccess } = useMutation({
+    mutationFn: () => verifyEmail(token),
+    onSuccess: (data) => {
+      // Broadcasts to a sibling "check your email" tab via the storage event.
+      localStorage.setItem(EMAIL_VERIFIED_KEY, 'true');
+      if (data.message === 'Email already verified.') {
+        toast.info('Your email is already verified. Please sign in.');
+        router.replace('/login');
+        return;
+      }
+      toast.success('Email verified! You can now sign in.');
+      setTimeout(() => router.push('/login'), 2000);
+    },
+  });
 
   useEffect(() => {
-    verifyEmail(token)
-      .then((data) => {
-        if (data.message === 'Email already verified.') {
-          localStorage.setItem(EMAIL_VERIFIED_KEY, 'true');
-          toast.info('Your email is already verified. Please sign in.');
-          router.replace('/login');
-          return;
-        }
-        localStorage.setItem(EMAIL_VERIFIED_KEY, 'true');
-        setState('success');
-        toast.success('Email verified! You can now sign in.');
-        setTimeout(() => router.push('/login'), 2000);
-      })
-      .catch(() => setState('error'));
-  }, [token, router]);
+    if (attempted.current) return;
+    attempted.current = true;
+    mutate();
+  }, [mutate]);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          {state === 'verifying' && 'Verifying your email…'}
-          {state === 'success' && 'Email verified!'}
-          {state === 'error' && 'Verification failed'}
+          {isError && 'Verification failed'}
+          {isSuccess && 'Email verified!'}
+          {!isError && !isSuccess && 'Verifying your email…'}
         </CardTitle>
         <CardDescription>
-          {state === 'verifying' && 'Please wait while we verify your email address.'}
-          {state === 'success' && 'Redirecting you to login…'}
-          {state === 'error' && 'The link may have expired or already been used.'}
+          {isError && 'The link may have expired or already been used.'}
+          {isSuccess && 'Redirecting you to login…'}
+          {!isError && !isSuccess && 'Please wait while we verify your email address.'}
         </CardDescription>
       </CardHeader>
       <CardFooter>
