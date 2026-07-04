@@ -17,7 +17,10 @@ interface AuthGuardProps {
   role?: UserRole | UserRole[];
 }
 
-export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | null {
+export function AuthGuard({
+  children,
+  role,
+}: AuthGuardProps): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
   const initialized = useAuthInitialized();
@@ -44,7 +47,11 @@ export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | nul
   return <>{children}</>;
 }
 
-export function GuestGuard({ children }: { children: React.ReactNode }): JSX.Element | null {
+export function GuestGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
   const initialized = useAuthInitialized();
@@ -60,7 +67,11 @@ export function GuestGuard({ children }: { children: React.ReactNode }): JSX.Ele
   return <>{children}</>;
 }
 
-export function AdminGuard({ children }: { children: React.ReactNode }): JSX.Element | null {
+export function AdminGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}): JSX.Element | null {
   const router = useRouter();
   const { accessToken, user } = useAuthStore();
   const initialized = useAuthInitialized();

@@ -51,7 +51,9 @@ export default function LoginPage(): JSX.Element {
     onError: (err: unknown, variables) => {
       const error = getApiError(err);
       if (error?.code === "EMAIL_NOT_VERIFIED") {
-        router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
+        router.push(
+          `/verify-email?email=${encodeURIComponent(variables.email)}`,
+        );
         return;
       }
       toast.error(error?.message ?? "Login failed");

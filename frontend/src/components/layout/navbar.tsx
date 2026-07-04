@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BriefcaseIcon,
   ChevronDownIcon,
@@ -11,26 +11,32 @@ import {
   LogOutIcon,
   UsersIcon,
   BuildingIcon,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useAuthStore } from '@/store/auth.store';
-import { logout } from '@/lib/api/auth';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
-import { isAdminRole } from '@/lib/permissions';
-import type { UserRole } from '@/types/api';
+} from "@/components/ui/dropdown-menu";
+import { useAuthStore } from "@/store/auth.store";
+import { logout } from "@/lib/api/auth";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
+import { isAdminRole } from "@/lib/permissions";
+import type { UserRole } from "@/types/api";
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href={href}
-      className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+      className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
     >
       {children}
     </Link>
@@ -45,20 +51,26 @@ function GuestNav() {
       <DropdownMenu>
         <DropdownMenuTrigger
           className={cn(
-            buttonVariants({ variant: 'ghost', size: 'sm' }),
-            'flex items-center gap-1',
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "flex items-center gap-1",
           )}
         >
           Register <ChevronDownIcon className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem>
-            <Link href="/register/candidate" className="flex w-full items-center gap-2">
+            <Link
+              href="/register/candidate"
+              className="flex w-full items-center gap-2"
+            >
               <UsersIcon className="size-4" /> Candidate
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Link href="/register/company" className="flex w-full items-center gap-2">
+            <Link
+              href="/register/company"
+              className="flex w-full items-center gap-2"
+            >
               <BuildingIcon className="size-4" /> Company
             </Link>
           </DropdownMenuItem>
@@ -103,13 +115,19 @@ function AdminNav() {
   );
 }
 
-function UserMenu({ email, onLogout }: { email: string; onLogout: () => void }) {
+function UserMenu({
+  email,
+  onLogout,
+}: {
+  email: string;
+  onLogout: () => void;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          buttonVariants({ variant: 'ghost', size: 'sm' }),
-          'flex max-w-[180px] items-center gap-1',
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "flex max-w-[180px] items-center gap-1",
         )}
       >
         <span className="truncate">{email}</span>
@@ -146,7 +164,7 @@ export function Navbar() {
     }
     clearAuth();
     queryClient.clear();
-    router.push('/login');
+    router.push("/login");
   };
 
   const role = user?.role as UserRole | undefined;
@@ -162,8 +180,8 @@ export function Navbar() {
           {mounted && (
             <>
               {!user && <GuestNav />}
-              {role === 'candidate' && <CandidateNav />}
-              {role === 'company' && <CompanyNav />}
+              {role === "candidate" && <CandidateNav />}
+              {role === "company" && <CompanyNav />}
               {role && isAdminRole(role) && <AdminNav />}
               {user && <UserMenu email={user.email} onLogout={handleLogout} />}
             </>

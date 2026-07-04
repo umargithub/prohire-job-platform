@@ -1,10 +1,12 @@
-export type UserRole = 'candidate' | 'company' | 'admin' | 'super_admin' | 'moderator';
+export type UserRole =
+  "candidate" | "company" | "admin" | "super_admin" | "moderator";
 
-export type ApplicationStage = 'applied' | 'reviewed' | 'interview' | 'offered' | 'rejected';
+export type ApplicationStage =
+  "applied" | "reviewed" | "interview" | "offered" | "rejected";
 
-export type JobType = 'remote' | 'hybrid' | 'onsite';
-export type ExperienceLevel = 'junior' | 'mid' | 'senior';
-export type CompanyMemberRole = 'owner' | 'recruiter';
+export type JobType = "remote" | "hybrid" | "onsite";
+export type ExperienceLevel = "junior" | "mid" | "senior";
+export type CompanyMemberRole = "owner" | "recruiter";
 
 // Auth
 export interface AuthUser {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { RESEND_SENT_AT_KEY as SENT_AT_KEY } from '@/lib/storage-keys';
+import { useState, useEffect } from "react";
+import { RESEND_SENT_AT_KEY as SENT_AT_KEY } from "@/lib/storage-keys";
 
 export function useResendCooldown(cooldownMs = 60_000) {
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -19,7 +19,10 @@ export function useResendCooldown(cooldownMs = 60_000) {
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
-    const id = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    const id = setInterval(
+      () => setSecondsLeft((s) => Math.max(0, s - 1)),
+      1000,
+    );
     return () => clearInterval(id);
   }, [secondsLeft]);
 

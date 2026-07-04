@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 
 export function Footer() {
   return (
@@ -9,13 +9,22 @@ export function Footer() {
             © {new Date().getFullYear()} ProHire. All rights reserved.
           </p>
           <nav className="flex gap-4 text-sm text-muted-foreground">
-            <Link href="/jobs" className="hover:text-foreground transition-colors">
+            <Link
+              href="/jobs"
+              className="hover:text-foreground transition-colors"
+            >
               Browse Jobs
             </Link>
-            <Link href="/register/candidate" className="hover:text-foreground transition-colors">
+            <Link
+              href="/register/candidate"
+              className="hover:text-foreground transition-colors"
+            >
               For Candidates
             </Link>
-            <Link href="/register/company" className="hover:text-foreground transition-colors">
+            <Link
+              href="/register/company"
+              className="hover:text-foreground transition-colors"
+            >
               For Companies
             </Link>
           </nav>

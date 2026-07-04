@@ -1,4 +1,4 @@
-import { AdminGuard } from '@/components/auth/auth-guard';
+import { AdminGuard } from "@/components/auth/auth-guard";
 
 export default function AdminLayout({
   children,
