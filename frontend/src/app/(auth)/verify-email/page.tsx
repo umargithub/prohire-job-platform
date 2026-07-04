@@ -5,9 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { apiClient } from '@/lib/api';
-import { resendVerification } from '@/lib/api/auth';
+import { resendVerification, verifyEmail } from '@/lib/api/auth';
 import { useResendCooldown } from '@/hooks/use-resend-cooldown';
+import { EMAIL_VERIFIED_KEY } from '@/lib/storage-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 
@@ -20,15 +20,15 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
   const [state, setState] = useState<TokenState>('verifying');
 
   useEffect(() => {
-    apiClient.get<{ message: string }>(`/auth/verify-email?token=${token}`)
-      .then(({ data }) => {
+    verifyEmail(token)
+      .then((data) => {
         if (data.message === 'Email already verified.') {
-          localStorage.setItem('prohire:email-verified', 'true');
+          localStorage.setItem(EMAIL_VERIFIED_KEY, 'true');
           toast.info('Your email is already verified. Please sign in.');
           router.replace('/login');
           return;
         }
-        localStorage.setItem('prohire:email-verified', 'true');
+        localStorage.setItem(EMAIL_VERIFIED_KEY, 'true');
         setState('success');
         toast.success('Email verified! You can now sign in.');
         setTimeout(() => router.push('/login'), 2000);
@@ -68,7 +68,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'prohire:email-verified' && e.newValue === 'true') {
+      if (e.key === EMAIL_VERIFIED_KEY && e.newValue === 'true') {
         toast.info('Your email has been verified. Please sign in.');
         router.replace('/login');
       }

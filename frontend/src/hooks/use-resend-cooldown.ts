@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-
-const SENT_AT_KEY = 'prohire:resend-sent-at';
+import { RESEND_SENT_AT_KEY as SENT_AT_KEY } from '@/lib/storage-keys';
 
 export function useResendCooldown(cooldownMs = 60_000) {
   const [secondsLeft, setSecondsLeft] = useState(0);

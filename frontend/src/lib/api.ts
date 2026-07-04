@@ -1,8 +1,21 @@
 import axios, { type AxiosError } from "axios";
 import { useAuthStore, type AuthUser } from "@/store/auth.store";
+import type { ApiErrorDetail, ApiErrorResponse } from "@/types/api";
 
 export const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1";
+
+/**
+ * Extracts the typed error detail from a rejected axios request, if present.
+ * Returns `undefined` for network errors or non-API error shapes.
+ */
+export function getApiError(err: unknown): ApiErrorDetail | undefined {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as ApiErrorResponse | undefined;
+    if (data && data.success === false) return data.error;
+  }
+  return undefined;
+}
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

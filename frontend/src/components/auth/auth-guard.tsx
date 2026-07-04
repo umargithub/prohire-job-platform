@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore, useAuthInitialized } from "@/store/auth.store";
-import { isAdminRole } from "@/lib/permissions";
+import { isAdminRole, ROLE_REDIRECTS } from "@/lib/permissions";
 import type { UserRole } from "@/types/api";
 
 const Spinner = () => (
@@ -40,6 +40,22 @@ export function AuthGuard({ children, role }: AuthGuardProps): JSX.Element | nul
     const allowed = Array.isArray(role) ? role : [role];
     if (!allowed.includes(user.role as UserRole)) return null;
   }
+
+  return <>{children}</>;
+}
+
+export function GuestGuard({ children }: { children: React.ReactNode }): JSX.Element | null {
+  const router = useRouter();
+  const { accessToken, user } = useAuthStore();
+  const initialized = useAuthInitialized();
+
+  useEffect(() => {
+    if (!initialized) return;
+    if (accessToken && user) router.replace(ROLE_REDIRECTS[user.role]);
+  }, [initialized, accessToken, user, router]);
+
+  if (!initialized) return <Spinner />;
+  if (accessToken && user) return null;
 
   return <>{children}</>;
 }

@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store/auth.store';
-import { apiClient } from '@/lib/api';
+import { logout } from '@/lib/api/auth';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { isAdminRole } from '@/lib/permissions';
@@ -138,7 +138,7 @@ export function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await logout();
     } catch {
       // ignore — still clear local state
     }

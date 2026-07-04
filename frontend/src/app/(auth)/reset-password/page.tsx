@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { resetPassword } from '@/lib/api/auth';
+import { getApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,9 +40,7 @@ export default function ResetPasswordPage(): JSX.Element {
       router.push('/login');
     },
     onError: (err: unknown) => {
-      const message = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message ?? 'Reset failed. The link may have expired.';
-      toast.error(message);
+      toast.error(getApiError(err)?.message ?? 'Reset failed. The link may have expired.');
     },
   });
 

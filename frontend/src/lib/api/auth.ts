@@ -63,6 +63,13 @@ export async function resendVerification(
   return data.data;
 }
 
+export async function verifyEmail(token: string): Promise<MessageResponse> {
+  const { data } = await apiClient.get<MessageResponse>(
+    `/auth/verify-email?token=${encodeURIComponent(token)}`,
+  );
+  return data;
+}
+
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout");
 }

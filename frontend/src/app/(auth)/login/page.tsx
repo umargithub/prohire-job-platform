@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,7 +8,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { login } from "@/lib/api/auth";
-import { useAuthStore, useAuthInitialized } from "@/store/auth.store";
+import { getApiError } from "@/lib/api";
+import { useAuthStore } from "@/store/auth.store";
 import { ROLE_REDIRECTS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,15 +30,9 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function LoginPage(): JSX.Element | null {
+export default function LoginPage(): JSX.Element {
   const router = useRouter();
-  const { accessToken, user, setAuth } = useAuthStore();
-  const hydrated = useAuthInitialized();
-
-  useEffect(() => {
-    if (!hydrated || !accessToken || !user) return;
-    router.replace(ROLE_REDIRECTS[user.role]);
-  }, [hydrated, accessToken, user, router]);
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const {
     register,
@@ -55,8 +49,7 @@ export default function LoginPage(): JSX.Element | null {
       router.push(ROLE_REDIRECTS[data.user.role]);
     },
     onError: (err: unknown, variables) => {
-      const error = (err as { response?: { data?: { error?: { code?: string; message?: string } } } })
-        ?.response?.data?.error;
+      const error = getApiError(err);
       if (error?.code === "EMAIL_NOT_VERIFIED") {
         router.push(`/verify-email?email=${encodeURIComponent(variables.email)}`);
         return;
@@ -64,9 +57,6 @@ export default function LoginPage(): JSX.Element | null {
       toast.error(error?.message ?? "Login failed");
     },
   });
-
-  if (!hydrated) return null;
-  if (accessToken && user) return null;
 
   return (
     <Card>

@@ -1,11 +1,7 @@
 import { create } from "zustand";
-import type { UserRole } from "@/types/api";
+import type { AuthUser } from "@/types/api";
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  role: UserRole;
-}
+export type { AuthUser };
 
 interface AuthState {
   accessToken: string | null;
