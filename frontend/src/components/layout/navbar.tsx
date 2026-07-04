@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/store/auth.store";
 import { logout } from "@/lib/api/auth";
+import { broadcastLogout } from "@/lib/auth-broadcast";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { isAdminRole } from "@/lib/permissions";
@@ -164,6 +165,7 @@ export function Navbar() {
     }
     clearAuth();
     queryClient.clear();
+    broadcastLogout();
     router.push("/login");
   };
 
