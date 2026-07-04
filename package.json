@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "typescript": "^5.9.3"
+  }
+}

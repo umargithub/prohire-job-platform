@@ -1,0 +1,3 @@
+{
+  "frontend/**/*.{ts,tsx,js,jsx,json,css,md}": "frontend/node_modules/.bin/prettier --write"
+}
