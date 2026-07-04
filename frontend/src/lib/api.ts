@@ -9,22 +9,34 @@ import type {
 export const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1";
 
+let inFlightRefresh: Promise<LoginResponse> | null = null;
+
 /**
  * Refreshes the session via the httpOnly refresh cookie.
  *
- * Uses a bare axios call (not `apiClient`) so it never triggers the
- * response interceptor's refresh-on-401 logic — this IS that logic's
- * building block. Single source of truth for the refresh request shape.
+ * Single-flight: concurrent callers — the 401 response interceptor and the
+ * AuthProvider bootstrap — share ONE in-flight request, so exactly one
+ * POST /auth/refresh is ever active per tab. Without this, the two owners
+ * could race the rotating refresh token.
+ *
+ * Uses a bare axios call (not `apiClient`) so it never re-triggers the
+ * response interceptor's refresh-on-401 logic — this IS that building block.
  */
-export async function refreshSession(
-  signal?: AbortSignal,
-): Promise<LoginResponse> {
-  const { data } = await axios.post<{ success: true; data: LoginResponse }>(
-    `${BASE_URL}/auth/refresh`,
-    {},
-    { withCredentials: true, timeout: 5000, signal },
-  );
-  return data.data;
+export function refreshSession(): Promise<LoginResponse> {
+  if (inFlightRefresh) return inFlightRefresh;
+
+  inFlightRefresh = axios
+    .post<{ success: true; data: LoginResponse }>(
+      `${BASE_URL}/auth/refresh`,
+      {},
+      { withCredentials: true, timeout: 5000 },
+    )
+    .then((res) => res.data.data)
+    .finally(() => {
+      inFlightRefresh = null;
+    });
+
+  return inFlightRefresh;
 }
 
 /**
