@@ -140,6 +140,16 @@ export class AuthRepository {
     ]);
   }
 
+  async deleteAllRefreshTokensForUser(
+    userId: string,
+    tx?: PoolClient,
+  ): Promise<void> {
+    const client = tx ?? this.db;
+    await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+      userId,
+    ]);
+  }
+
   async savePasswordResetToken(
     userId: string,
     tokenHash: string,

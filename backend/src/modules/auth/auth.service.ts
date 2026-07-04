@@ -264,6 +264,7 @@ export class AuthService {
     await this.db.transaction(async (tx) => {
       await this.authRepository.deletePasswordResetToken(tokenRow.id, tx);
       await this.authRepository.updatePassword(tokenRow.user_id, passwordHash, tx);
+      await this.authRepository.deleteAllRefreshTokensForUser(tokenRow.user_id, tx);
     });
 
     return { message: "Password reset successfully." };

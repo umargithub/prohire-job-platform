@@ -1,7 +1,7 @@
 import { config } from "../../../config";
 
 export function passwordResetTemplate(token: string): { subject: string; html: string } {
-  const url = `${config.FRONTEND_URL}/auth/reset-password?token=${token}`;
+  const url = `${config.FRONTEND_URL}/reset-password?token=${token}`;
   return {
     subject: "Reset your ProHire password",
     html: `
