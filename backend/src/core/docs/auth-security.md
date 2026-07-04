@@ -5,7 +5,7 @@
 - **Refresh token rotation** — every `/auth/refresh` call deletes the old token and issues a new one. A stolen token can only be replayed once before it is rotated away.
 - **Hashed token storage** — raw tokens are never stored. Only `SHA-256(token)` is persisted. A database leak does not expose usable tokens.
 - **Short-lived access tokens** — access tokens expire quickly (see `jwt.utils.ts`). Refresh tokens carry the long-lived session.
-- **Transactional rotation** — `deleteRefreshToken` and `saveRefreshToken` run inside a single transaction, so a crash mid-rotation cannot leave the user with no valid token or two valid tokens simultaneously.
+- **Atomic compare-and-swap rotation** — rotation runs in a single transaction where `consumeRefreshToken` deletes the old row and returns its owner in one locked `DELETE ... RETURNING` statement, then a new token is inserted. Because the delete is the gate, of N concurrent refreshes carrying the same token exactly one succeeds; the rest see no row and are rejected. This removes the read-then-write (TOCTOU) gap, so concurrent refreshes cannot leave the user with two valid tokens or an orphaned one.
 - **Secure resend / forgot-password flows** — `withTimingFloor` prevents timing-based account enumeration on both endpoints.
 
 ---

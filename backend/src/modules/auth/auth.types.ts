@@ -17,7 +17,8 @@ export interface TokenRow {
   created_at: Date;
 }
 
-export interface RefreshTokenRow extends TokenRow {
+export interface ConsumedRefreshTokenRow {
+  user_id: string;
   email: string;
   role: "candidate" | "company" | "admin" | "super_admin" | "moderator";
 }

@@ -184,34 +184,40 @@ export class AuthService {
     user: { id: string; email: string; role: string };
   }> {
     const tokenHash = hashToken(rawToken);
-    const tokenRow = await this.authRepository.findRefreshToken(tokenHash);
-
-    if (!tokenRow) {
-      throw new UnauthorizedError("Invalid or expired refresh token");
-    }
-
     const newRawToken = generateToken();
     const newTokenHash = hashToken(newRawToken);
     const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_MS);
 
-    // Rotate: delete old token, issue new one atomically
-    await this.db.transaction(async (tx) => {
-      await this.authRepository.deleteRefreshToken(tokenHash, tx);
-      await this.authRepository.saveRefreshToken(tokenRow.user_id, newTokenHash, newExpiresAt, tx);
+    // Atomic compare-and-swap rotation. `consumeRefreshToken` deletes the old
+    // row and returns the owner in one locked statement, so of N concurrent
+    // refreshes with the same token exactly one succeeds; the rest see `null`
+    // and are rejected. No read-then-write gap, no token proliferation.
+    const consumed = await this.db.transaction(async (tx) => {
+      const row = await this.authRepository.consumeRefreshToken(tokenHash, tx);
+      if (!row) {
+        throw new UnauthorizedError("Invalid or expired refresh token");
+      }
+      await this.authRepository.saveRefreshToken(
+        row.user_id,
+        newTokenHash,
+        newExpiresAt,
+        tx,
+      );
+      return row;
     });
 
     const accessToken = generateAccessToken({
-      userId: tokenRow.user_id,
-      role: tokenRow.role,
+      userId: consumed.user_id,
+      role: consumed.role,
     });
 
     return {
       accessToken,
       newRefreshToken: newRawToken,
       user: {
-        id: tokenRow.user_id,
-        email: tokenRow.email,
-        role: tokenRow.role,
+        id: consumed.user_id,
+        email: consumed.email,
+        role: consumed.role,
       },
     };
   }

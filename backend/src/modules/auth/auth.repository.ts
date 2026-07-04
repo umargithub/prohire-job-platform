@@ -1,6 +1,10 @@
 import { PoolClient } from "pg";
 import { DatabaseClient } from "../../core/database/db";
-import { UserRow, TokenRow, RefreshTokenRow } from "./auth.types";
+import {
+  UserRow,
+  TokenRow,
+  ConsumedRefreshTokenRow,
+} from "./auth.types";
 
 export class AuthRepository {
   constructor(private readonly db: DatabaseClient) {}
@@ -121,13 +125,26 @@ export class AuthRepository {
     );
   }
 
-  async findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null> {
-    const result = await this.db.query<RefreshTokenRow>(
-      `SELECT rt.id, rt.user_id, rt.token_hash, rt.expires_at, rt.created_at,
-              u.email, u.role
-       FROM refresh_tokens rt
-       JOIN users u ON u.id = rt.user_id AND u.is_deleted = FALSE
-       WHERE rt.token_hash = $1 AND rt.expires_at > NOW()`,
+  /**
+   * Atomically consumes a refresh token: deletes the row and returns the
+   * owning user in a single statement. The row-level lock guarantees that of
+   * N concurrent refreshes carrying the same token, exactly one deletes the
+   * row (and gets a result); the rest get `null`. This is the compare-and-swap
+   * that makes rotation single-use and race-safe.
+   */
+  async consumeRefreshToken(
+    tokenHash: string,
+    tx?: PoolClient,
+  ): Promise<ConsumedRefreshTokenRow | null> {
+    const client = tx ?? this.db;
+    const result = await client.query<ConsumedRefreshTokenRow>(
+      `DELETE FROM refresh_tokens rt
+       USING users u
+       WHERE rt.token_hash = $1
+         AND u.id = rt.user_id
+         AND u.is_deleted = FALSE
+         AND rt.expires_at > NOW()
+       RETURNING rt.user_id, u.email, u.role`,
       [tokenHash],
     );
     return result.rows[0] ?? null;
