@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   BriefcaseIcon,
   ChevronDownIcon,
@@ -131,6 +132,7 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   const { user, clearAuth } = useAuthStore();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setMounted(true);
@@ -143,6 +145,7 @@ export function Navbar() {
       // ignore — still clear local state
     }
     clearAuth();
+    queryClient.clear();
     router.push('/login');
   };
 

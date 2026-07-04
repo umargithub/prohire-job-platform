@@ -1,9 +1,31 @@
 import axios, { type AxiosError } from "axios";
-import { useAuthStore, type AuthUser } from "@/store/auth.store";
-import type { ApiErrorDetail, ApiErrorResponse } from "@/types/api";
+import { useAuthStore } from "@/store/auth.store";
+import type {
+  ApiErrorDetail,
+  ApiErrorResponse,
+  LoginResponse,
+} from "@/types/api";
 
 export const BASE_URL =
   (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1";
+
+/**
+ * Refreshes the session via the httpOnly refresh cookie.
+ *
+ * Uses a bare axios call (not `apiClient`) so it never triggers the
+ * response interceptor's refresh-on-401 logic — this IS that logic's
+ * building block. Single source of truth for the refresh request shape.
+ */
+export async function refreshSession(
+  signal?: AbortSignal,
+): Promise<LoginResponse> {
+  const { data } = await axios.post<{ success: true; data: LoginResponse }>(
+    `${BASE_URL}/auth/refresh`,
+    {},
+    { withCredentials: true, timeout: 5000, signal },
+  );
+  return data.data;
+}
 
 /**
  * Extracts the typed error detail from a rejected axios request, if present.
@@ -72,13 +94,10 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const { data } = await axios.post<{
-        success: true;
-        data: { accessToken: string; user: AuthUser };
-      }>(BASE_URL + "/auth/refresh", {}, { withCredentials: true });
-      useAuthStore.getState().setAuth(data.data.accessToken, data.data.user);
-      processQueue(null, data.data.accessToken);
-      originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
+      const session = await refreshSession();
+      useAuthStore.getState().setAuth(session.accessToken, session.user);
+      processQueue(null, session.accessToken);
+      originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
       return apiClient.request(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import axios from "axios";
-import { useAuthStore, type AuthUser } from "@/store/auth.store";
-import { BASE_URL } from "@/lib/api";
+import { useAuthStore } from "@/store/auth.store";
+import { refreshSession } from "@/lib/api";
 
 export function AuthProvider({
   children,
@@ -23,14 +23,9 @@ export function AuthProvider({
 
     const controller = new AbortController();
 
-    axios
-      .post<{ success: true; data: { accessToken: string; user: AuthUser } }>(
-        BASE_URL + "/auth/refresh",
-        {},
-        { withCredentials: true, timeout: 5000, signal: controller.signal },
-      )
-      .then(({ data }) => {
-        setAuth(data.data.accessToken, data.data.user);
+    refreshSession(controller.signal)
+      .then((session) => {
+        setAuth(session.accessToken, session.user);
         setInitialized();
       })
       .catch((err) => {
