@@ -7,6 +7,7 @@
 - **Short-lived access tokens** — access tokens expire quickly (see `jwt.utils.ts`). Refresh tokens carry the long-lived session.
 - **Atomic compare-and-swap rotation** — rotation runs in a single transaction where `consumeRefreshToken` deletes the old row and returns its owner in one locked `DELETE ... RETURNING` statement, then a new token is inserted. Because the delete is the gate, of N concurrent refreshes carrying the same token exactly one succeeds; the rest see no row and are rejected. This removes the read-then-write (TOCTOU) gap, so concurrent refreshes cannot leave the user with two valid tokens or an orphaned one.
 - **Secure resend / forgot-password flows** — `withTimingFloor` prevents timing-based account enumeration on both endpoints.
+- **Cross-tab session sync** — logout and login propagate across tabs via a same-origin `BroadcastChannel` (`frontend/src/lib/auth-broadcast.ts`). Logging out in one tab clears every other tab's in-memory session and query cache (mounted guards then redirect protected pages); logging in shares the session so sibling tabs adopt it without each minting its own token (which would stampede `/auth/refresh`).
 
 ---
 

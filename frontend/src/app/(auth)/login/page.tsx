@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { login } from "@/lib/api/auth";
 import { getApiError } from "@/lib/api";
+import { broadcastLogin } from "@/lib/auth-broadcast";
 import { useAuthStore } from "@/store/auth.store";
 import { ROLE_REDIRECTS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export default function LoginPage(): JSX.Element {
     mutationFn: (values: FormValues) => login(values.email, values.password),
     onSuccess: (data) => {
       setAuth(data.accessToken, data.user);
+      broadcastLogin(data.accessToken, data.user);
       router.push(ROLE_REDIRECTS[data.user.role]);
     },
     onError: (err: unknown, variables) => {

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
 import { refreshSession } from "@/lib/api";
-import { onAuthLogout } from "@/lib/auth-broadcast";
+import { onAuthLogout, onAuthLogin } from "@/lib/auth-broadcast";
 
 export function AuthProvider({
   children,
@@ -34,6 +34,13 @@ export function AuthProvider({
       queryClient.clear();
     });
   }, [clearAuth, queryClient]);
+
+  useEffect(() => {
+    // Login in another tab → adopt its session directly (no refresh, so no
+    // stampede). Sharing the in-memory token across same-origin tabs adds no
+    // new exposure.
+    return onAuthLogin((accessToken, user) => setAuth(accessToken, user));
+  }, [setAuth]);
 
   return <>{children}</>;
 }
