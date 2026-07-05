@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
 import { toast } from "sonner";
 import Link from "next/link";
 import { resendVerification, verifyEmail } from "@/lib/api/auth";
@@ -23,7 +24,7 @@ import {
 function TokenVerification({ token }: { token: string }): JSX.Element {
   const router = useRouter();
 
-  const { mutate, isPending, isError, isSuccess } = useMutation({
+  const { mutate, isPending, isError, isSuccess, error } = useMutation({
     mutationFn: () => verifyEmail(token),
     onSuccess: (data) => {
       // Broadcasts to a sibling "check your email" tab via the storage event.
@@ -38,6 +39,13 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
     },
   });
 
+  // A 400 is a definitive token error (invalid / expired / already used) —
+  // retrying can't change the outcome. Anything else (network, timeout, 5xx)
+  // is transient, so keep the button available for an inline retry.
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  const isTokenError = status === 400;
+  const showButton = !isSuccess && (!isError || !isTokenError);
+
   return (
     <Card>
       <CardHeader>
@@ -47,14 +55,17 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
           {!isError && !isSuccess && "Confirm your email"}
         </CardTitle>
         <CardDescription>
-          {isError && "The link may have expired or already been used."}
+          {isError &&
+            (isTokenError
+              ? "The link may have expired or already been used."
+              : "Something went wrong. Please try again.")}
           {isSuccess && "Redirecting you to login…"}
           {!isError &&
             !isSuccess &&
             "Click the button below to verify your email address."}
         </CardDescription>
       </CardHeader>
-      {!isSuccess && !isError && (
+      {showButton && (
         <CardContent>
           {/* Verification is an explicit user action (POST), never auto-fired on
               load, so email link scanners and prefetchers can't consume the token. */}
@@ -63,7 +74,11 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
             onClick={() => mutate()}
             disabled={isPending}
           >
-            {isPending ? "Verifying…" : "Verify my email"}
+            {isPending
+              ? "Verifying…"
+              : isError
+                ? "Try again"
+                : "Verify my email"}
           </Button>
         </CardContent>
       )}

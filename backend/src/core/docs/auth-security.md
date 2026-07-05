@@ -8,6 +8,11 @@
 - **Atomic compare-and-swap rotation** — rotation runs in a single transaction where `consumeRefreshToken` deletes the old row and returns its owner in one locked `DELETE ... RETURNING` statement, then a new token is inserted. Because the delete is the gate, of N concurrent refreshes carrying the same token exactly one succeeds; the rest see no row and are rejected. This removes the read-then-write (TOCTOU) gap, so concurrent refreshes cannot leave the user with two valid tokens or an orphaned one.
 - **Secure resend / forgot-password flows** — `withTimingFloor` prevents timing-based account enumeration on both endpoints.
 - **Cross-tab session sync** — logout and login propagate across tabs via a same-origin `BroadcastChannel` (`frontend/src/lib/auth-broadcast.ts`). Logging out in one tab clears every other tab's in-memory session and query cache (mounted guards then redirect protected pages); logging in shares the session so sibling tabs adopt it without each minting its own token (which would stampede `/auth/refresh`).
+- **Refresh failure is classified by cause** — the 401 response interceptor (`frontend/src/lib/api.ts`) only tears down the session (clear + redirect to `/login`) when the refresh call itself returns **401/403** (the session is genuinely dead). Network errors, timeouts, and **5xx** are treated as transient: the still-valid session is kept and the failing request is simply rejected, so a brief backend blip does not log everyone out. See the design note below for the deliberate consequence.
+
+### Design note: transient vs. terminal refresh failure
+
+Because refresh failures are classified by status, a **persistent** `5xx` on `/auth/refresh` leaves the user in a degraded-but-logged-in state: their queries keep failing and they are **not** redirected to `/login`. This is intentional — a `5xx` is a server fault, and logging the user out neither fixes it nor helps them. Recovery is automatic: once the backend heals, a valid refresh token resumes the session; if the token was actually expired, the refresh returns `401` and the user is then redirected. The bootstrap path (`AuthProvider`) still clears on any failure, because at startup there is no in-memory session to preserve.
 
 ---
 
