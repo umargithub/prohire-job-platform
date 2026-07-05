@@ -74,14 +74,37 @@ The session is **not** actually invalid — the cookie now holds the winner's fr
 
 Authentication remains **correct and secure**: single-use rotation holds, no token is orphaned or duplicated, nothing leaks. This is purely a **UX defect** (a rare, self-correcting spurious logout), not a security hole.
 
-### Options considered (and why deferred)
+### Why the client cannot fix this
 
-- **Client retries the `401`** — rejected. It overloads `401` (which legitimately also means expired / revoked / logged-out-elsewhere) and makes the client guess the backend's rejection reason. Wrong layer to own that decision.
-- **Accepting grace window** — keep a rotated token valid for a few seconds. Rejected: it weakens single-use rotation and fights future reuse detection.
-- **Signal-only rotated record (`409 CONCURRENT_REFRESH`)** — retain recently-rotated hashes so the server can answer "stale-but-valid, retry" vs. "dead, log out." Clean, but needs a migration + cleanup TTL.
-- **Session/token-family model** — a `sessions` row with a rotating current-token pointer. The most robust option; it would also subsume logout-everywhere and reuse detection. But it is a substantial change (new table, migration, rotation refactor).
+The tempting client-side fix is "on a `401` from `/auth/refresh`, retry the refresh once." It is **rejected**, and understanding why frames where the real fix lives.
 
-All of these solve a problem almost no user of a portfolio job board will hit. The proportionate decision is to leave the behavior documented and revisit **only if cross-tab / multi-device session management becomes a product requirement** — at which point the session-family model is the natural home for this fix, logout-everywhere, and reuse detection together.
+A `401` from `/auth/refresh` is ambiguous by construction — the backend collapses several unrelated situations into one status code:
+
+| Cause | Cookie state | Retry helps? |
+|---|---|---|
+| Sibling tab rotated the token (this race) | cookie already holds the fresh token | **Yes** |
+| Refresh token expired | stale, nothing rotated it | No — re-presents the same dead token |
+| User logged out / session deleted | gone server-side | No — fights a deliberate action |
+| Token revoked (e.g. revoke-all on password reset) | intentionally killed | No — actively wrong |
+| Tampered / invalid token | invalid | No |
+
+Only the first row benefits. In every other row the retry re-presents the *same* stale cookie, gets `401` again, and logs out anyway — a wasted round trip in which the client second-guessed a definitive backend answer it has no way to interpret. Worse, it is fragile against future hardening: once **reuse detection** exists (see the reuse-detection limitation above), presenting an already-consumed token is treated as theft and revokes the whole family — so a blind client retry would trip the alarm and nuke every session. The client cannot distinguish these cases, so it must not guess. **The ambiguity has to be resolved on the backend.**
+
+### Backend fix options (where the fix belongs)
+
+Two clean server-side approaches, either of which removes the guesswork:
+
+1. **Grace window (simplest).** On rotation, keep accepting the immediately-preceding token for a short interval (~5–10s). The losing tab's stale token is then honored, the server returns a fresh token instead of `401`, and **the race never surfaces** — no client change at all. Cost: a small relaxation of strict single-use rotation for that window, and it must be reconciled with reuse detection (a token used inside its grace window is legitimate; outside it is a replay). Needs a `previous_token_hash` + `rotated_at` (or a short-lived record) and cleanup.
+
+2. **Disambiguated response (`409 CONCURRENT_REFRESH` / `TOKEN_ROTATED`).** Retain recently-rotated token hashes so the server can distinguish "stale-but-just-rotated → retry" from "genuinely dead → log out," and return a distinct code for the former. The client then retries *only* on that explicit signal — no guessing, because the server states which case it is. Cost: a migration for the rotated-hash record plus a cleanup TTL.
+
+3. **Session / token-family model (most robust).** A `sessions` row with a rotating current-token pointer and a `family_id`. This subsumes this fix, logout-everywhere, **and** reuse detection in one model, and is the natural home if multi-device session management becomes a requirement. Cost: substantial — new table, migration, rotation refactor.
+
+Note options 2 and 3 build directly on the same `previous_token_hash` / family machinery described in the reuse-detection limitation above — so if that is ever implemented, this fix comes almost for free alongside it.
+
+### Decision
+
+All of these solve a problem almost no user of a portfolio job board will hit. The proportionate decision is to leave the behavior documented and revisit **only if cross-tab / multi-device session management becomes a product requirement** — at which point the session-family model (option 3) is the natural home for this fix, logout-everywhere, and reuse detection together. If a lighter standalone fix is ever wanted sooner, the grace window (option 1) is the least-effort correct choice. In all cases the fix is server-side; a client retry is never the answer.
 
 ---
 
