@@ -64,9 +64,9 @@ export async function resendVerification(
 }
 
 export async function verifyEmail(token: string): Promise<MessageResponse> {
-  const { data } = await apiClient.get<MessageResponse>(
-    `/auth/verify-email?token=${encodeURIComponent(token)}`,
-  );
+  const { data } = await apiClient.post<MessageResponse>("/auth/verify-email", {
+    token,
+  });
   return data;
 }
 

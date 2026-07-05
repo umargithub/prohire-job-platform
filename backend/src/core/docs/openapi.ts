@@ -211,10 +211,17 @@ export const openApiSpec = {
       },
     },
     "/auth/verify-email": {
-      get: {
+      post: {
         tags: ["Auth"],
         summary: "Verify email address",
-        parameters: [{ in: "query", name: "token", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["token"], properties: { token: { type: "string" } } },
+            },
+          },
+        },
         responses: {
           "200": { description: "Email verified" },
           "400": { description: "Invalid or expired token" },

@@ -21,8 +21,11 @@ export const ResetPasswordDto = z.object({
 
 export const ResendVerificationDto = z.object({ email: z.string().email() });
 
+export const VerifyEmailDto = z.object({ token: z.string() });
+
 export type RegisterInput = z.infer<typeof RegisterDto>;
 export type LoginInput = z.infer<typeof LoginDto>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordDto>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordDto>;
 export type ResendVerificationInput = z.infer<typeof ResendVerificationDto>;
+export type VerifyEmailInput = z.infer<typeof VerifyEmailDto>;

@@ -9,6 +9,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   ResendVerificationDto,
+  VerifyEmailDto,
 } from "./auth.dto";
 
 const registerLimit = createRateLimiter("auth-register", 10, 15 * 60_000, "ip");
@@ -42,10 +43,11 @@ export default function authRoutes(authController: AuthController): Router {
 
   router.post("/login", loginLimit, validate(LoginDto), authController.login);
 
-  router.get(
+  router.post(
     "/verify-email",
     verifyLimitIp,
     verifyLimitGlobal,
+    validate(VerifyEmailDto),
     authController.verifyEmail,
   );
 

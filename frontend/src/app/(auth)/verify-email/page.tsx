@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -22,11 +22,8 @@ import {
 
 function TokenVerification({ token }: { token: string }): JSX.Element {
   const router = useRouter();
-  // Guards against React StrictMode's double effect invocation in dev. Not a
-  // correctness mechanism — the backend consume is idempotent (200 on re-hit).
-  const attempted = useRef(false);
 
-  const { mutate, isError, isSuccess } = useMutation({
+  const { mutate, isPending, isError, isSuccess } = useMutation({
     mutationFn: () => verifyEmail(token),
     onSuccess: (data) => {
       // Broadcasts to a sibling "check your email" tab via the storage event.
@@ -41,28 +38,35 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
     },
   });
 
-  useEffect(() => {
-    if (attempted.current) return;
-    attempted.current = true;
-    mutate();
-  }, [mutate]);
-
   return (
     <Card>
       <CardHeader>
         <CardTitle>
           {isError && "Verification failed"}
           {isSuccess && "Email verified!"}
-          {!isError && !isSuccess && "Verifying your email…"}
+          {!isError && !isSuccess && "Confirm your email"}
         </CardTitle>
         <CardDescription>
           {isError && "The link may have expired or already been used."}
           {isSuccess && "Redirecting you to login…"}
           {!isError &&
             !isSuccess &&
-            "Please wait while we verify your email address."}
+            "Click the button below to verify your email address."}
         </CardDescription>
       </CardHeader>
+      {!isSuccess && !isError && (
+        <CardContent>
+          {/* Verification is an explicit user action (POST), never auto-fired on
+              load, so email link scanners and prefetchers can't consume the token. */}
+          <Button
+            className="w-full"
+            onClick={() => mutate()}
+            disabled={isPending}
+          >
+            {isPending ? "Verifying…" : "Verify my email"}
+          </Button>
+        </CardContent>
+      )}
       <CardFooter>
         <p className="text-xs text-muted-foreground text-center w-full">
           <Link href="/login" className="text-foreground hover:underline">
