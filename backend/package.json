@@ -10,6 +10,7 @@
     "migrate": "ts-node src/core/database/migrate.ts",
     "db:migrate": "ts-node src/core/database/migrate.ts",
     "db:seed": "ts-node src/core/database/seeds/admin.seed.ts",
+    "db:seed:jobs": "ts-node src/core/database/seeds/jobs.seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

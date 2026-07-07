@@ -1,8 +1,190 @@
-export default function JobsPage(): JSX.Element {
+"use client";
+
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useJobs } from "@/hooks/use-jobs";
+import { useDebounce } from "@/hooks/use-debounce";
+import { JobCard } from "@/components/jobs/job-card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { JobFilters } from "@/lib/api/jobs";
+import type { ExperienceLevel, JobType } from "@/types/api";
+
+const SELECT_CLASS =
+  "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+
+function JobsBrowse(): JSX.Element {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const search = searchParams.get("search") ?? "";
+  const jobType = searchParams.get("job_type") ?? "";
+  const experienceLevel = searchParams.get("experience_level") ?? "";
+
+  const filters: JobFilters = {
+    page,
+    ...(search ? { search } : {}),
+    ...(jobType ? { jobType: jobType as JobType } : {}),
+    ...(experienceLevel
+      ? { experienceLevel: experienceLevel as ExperienceLevel }
+      : {}),
+  };
+
+  const { data, isPending, isError, isPlaceholderData } = useJobs(filters);
+
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>): void => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === "") params.delete(key);
+        else params.set(key, value);
+      }
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [router, pathname, searchParams],
+  );
+
+  // Search box: local state debounced into the URL (resetting to page 1).
+  const [searchInput, setSearchInput] = useState(search);
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  useEffect(() => {
+    if (debouncedSearch !== search) {
+      updateParams({ search: debouncedSearch || null, page: null });
+    }
+    // Intentionally only react to the debounced value; `search` reflects the
+    // URL and is the comparison baseline, not a trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const total = data?.total ?? 0;
+  const limit = data?.limit ?? 20;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const hasFilters = Boolean(search || jobType || experienceLevel);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <h1 className="text-2xl font-bold">Browse Jobs</h1>
-      <p className="mt-2 text-muted-foreground">Job listings coming soon.</p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Browse Jobs</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isPending
+            ? "Loading…"
+            : `${total} open position${total === 1 ? "" : "s"}`}
+        </p>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          placeholder="Search titles, skills, keywords…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="h-8 max-w-xs"
+        />
+        <select
+          className={SELECT_CLASS}
+          value={jobType}
+          onChange={(e) =>
+            updateParams({ job_type: e.target.value || null, page: null })
+          }
+          aria-label="Job type"
+        >
+          <option value="">All types</option>
+          <option value="remote">Remote</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="onsite">On-site</option>
+        </select>
+        <select
+          className={SELECT_CLASS}
+          value={experienceLevel}
+          onChange={(e) =>
+            updateParams({
+              experience_level: e.target.value || null,
+              page: null,
+            })
+          }
+          aria-label="Experience level"
+        >
+          <option value="">All levels</option>
+          <option value="junior">Junior</option>
+          <option value="mid">Mid</option>
+          <option value="senior">Senior</option>
+        </select>
+        {hasFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchInput("");
+              router.push(pathname);
+            }}
+          >
+            Clear
+          </Button>
+        ) : null}
+      </div>
+
+      {isError ? (
+        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Something went wrong loading jobs. Please try again.
+        </p>
+      ) : isPending ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full" />
+          ))}
+        </div>
+      ) : data.jobs.length === 0 ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          No jobs match your filters.
+        </p>
+      ) : (
+        <div
+          className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+            isPlaceholderData ? "opacity-60" : ""
+          }`}
+        >
+          {data.jobs.map((job) => (
+            <JobCard key={job.id} job={job} />
+          ))}
+        </div>
+      )}
+
+      {!isPending && !isError && totalPages > 1 ? (
+        <div className="mt-8 flex items-center justify-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => updateParams({ page: String(page - 1) })}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => updateParams({ page: String(page + 1) })}
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export default function JobsPage(): JSX.Element {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-7xl px-4 py-8" />}>
+      <JobsBrowse />
+    </Suspense>
   );
 }
