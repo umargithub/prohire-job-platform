@@ -3,6 +3,27 @@ import type { JobWithCompanyRow } from "./jobs.types";
 import { ListJobsQueryInput } from "./jobs.dto";
 import { FindJobsResult } from "./jobs.types";
 
+/**
+ * Converts a raw user search string into a prefix tsquery, e.g.
+ *   "dev"        -> "dev:*"
+ *   "senior dev" -> "senior:* & dev:*"
+ *   "node.js"    -> "node:* & js:*"
+ *   "  +++  "    -> ""   (no valid tokens)
+ *
+ * Splits on non-alphanumerics and appends ":*" for prefix matching, so partial
+ * typing matches. Returns "" when nothing usable remains, so the caller can fall
+ * back to websearch_to_tsquery alone. Never feeds raw input to to_tsquery, which
+ * throws on operator syntax like unbalanced "&", "|", or "(".
+ */
+function toPrefixTsQuery(search: string): string {
+  const tokens = search
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 0);
+
+  return tokens.map((token) => `${token}:*`).join(" & ");
+}
+
 export class JobsRepository {
   constructor(private readonly db: DatabaseClient) {}
 
@@ -11,8 +32,22 @@ export class JobsRepository {
     const params: unknown[] = [];
 
     if (filters.search) {
+      // Match either the stemmed whole-word query (so "devops" -> lexeme "devop"
+      // matches) OR a prefix query (so partial typing like "dev" matches too).
+      const prefixQuery = toPrefixTsQuery(filters.search);
+
       params.push(filters.search);
-      conditions.push(`search_vector @@ websearch_to_tsquery('english', $${params.length})`);
+      const websearchParam = params.length;
+
+      if (prefixQuery) {
+        params.push(prefixQuery);
+        const prefixParam = params.length;
+        conditions.push(
+          `(search_vector @@ websearch_to_tsquery('english', $${websearchParam}) OR search_vector @@ to_tsquery('english', $${prefixParam}))`,
+        );
+      } else {
+        conditions.push(`search_vector @@ websearch_to_tsquery('english', $${websearchParam})`);
+      }
     }
     if (filters.location) {
       params.push(`%${filters.location}%`);
