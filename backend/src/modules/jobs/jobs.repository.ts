@@ -85,7 +85,7 @@ export class JobsRepository {
        FROM jobs j
        JOIN companies c ON c.id = j.company_id AND c.is_deleted = FALSE
        WHERE ${where}
-       ORDER BY j.created_at DESC
+       ORDER BY j.created_at DESC, j.id DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
       params,
     );
