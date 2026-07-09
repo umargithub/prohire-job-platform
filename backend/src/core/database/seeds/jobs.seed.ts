@@ -519,12 +519,20 @@ async function seedJobs(): Promise<void> {
       // Idempotent job refresh: wipe this company's jobs, then re-insert.
       await client.query(`DELETE FROM jobs WHERE company_id = $1`, [companyId]);
 
-      for (const job of jobsForCompany) {
+      for (const [jobIndex, job] of jobsForCompany.entries()) {
+        // Stagger created_at so newest-first ordering interleaves companies
+        // (mimicking production, where postings arrive interspersed over time)
+        // instead of clumping all of one company's jobs together. Lower rank =
+        // more recent; company 0's first job is newest, then company 1's, etc.
+        const rank = jobIndex * COMPANY_SEEDS.length + companyIndex;
         await client.query(
           `INSERT INTO jobs
              (company_id, title, description, location, job_type,
-              experience_level, salary_min, salary_max, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)`,
+              experience_level, salary_min, salary_max, is_active,
+              created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE,
+                   NOW() - ($9 * INTERVAL '1 minute'),
+                   NOW() - ($9 * INTERVAL '1 minute'))`,
           [
             companyId,
             job.title,
@@ -534,6 +542,7 @@ async function seedJobs(): Promise<void> {
             job.experienceLevel,
             job.salaryMin,
             job.salaryMax,
+            rank,
           ],
         );
         jobCount += 1;
