@@ -28,6 +28,8 @@ interface CompanySeed {
   name: string;
   description: string;
   website: string;
+  // Cities used for onsite/hybrid generated roles. Remote roles ignore these.
+  cities: string[];
   jobs: JobSeed[];
 }
 
@@ -39,6 +41,7 @@ const COMPANY_SEEDS: CompanySeed[] = [
     name: "Nimbus Cloud",
     description: "Developer-first cloud infrastructure platform.",
     website: "https://nimbus.dev",
+    cities: ["San Francisco, CA", "New York, NY", "Denver, CO"],
     jobs: [
       {
         title: "Senior Backend Engineer (Node.js)",
@@ -107,6 +110,7 @@ const COMPANY_SEEDS: CompanySeed[] = [
     name: "Finch Labs",
     description: "Fintech infrastructure for modern banking products.",
     website: "https://finch-labs.io",
+    cities: ["New York, NY", "Austin, TX", "Chicago, IL"],
     jobs: [
       {
         title: "Staff Software Engineer, Payments",
@@ -175,6 +179,7 @@ const COMPANY_SEEDS: CompanySeed[] = [
     name: "Verdant",
     description: "Climate analytics for supply chains.",
     website: "https://verdant.eco",
+    cities: ["Seattle, WA", "Portland, OR", "Boston, MA"],
     jobs: [
       {
         title: "Machine Learning Engineer",
@@ -243,6 +248,7 @@ const COMPANY_SEEDS: CompanySeed[] = [
     name: "Orbit Games",
     description: "Building cross-platform multiplayer games.",
     website: "https://orbit-games.gg",
+    cities: ["Los Angeles, CA", "San Diego, CA", "Austin, TX"],
     jobs: [
       {
         title: "Gameplay Engineer (C++)",
@@ -308,12 +314,171 @@ const COMPANY_SEEDS: CompanySeed[] = [
   },
 ];
 
+// Target total jobs per company. 4 companies × 25 = 100 jobs.
+const TARGET_PER_COMPANY = 25;
+
+const REMOTE_LOCATIONS = ["Remote (US)", "Remote (Global)"] as const;
+
+const TEAMS = [
+  "Core",
+  "Platform",
+  "Growth",
+  "Infrastructure",
+  "Payments",
+  "Data",
+  "Mobile",
+  "Internal Tools",
+  "Billing",
+  "Search",
+] as const;
+
+// Reusable role templates. `fillCompanyJobs` cycles through these to top each
+// company up to TARGET_PER_COMPANY, varying team, location, and salary
+// deterministically so re-runs produce identical data.
+const ROLE_TEMPLATES: ReadonlyArray<Omit<JobSeed, "location">> = [
+  {
+    title: "Backend Engineer",
+    description:
+      "Design and ship services in TypeScript and PostgreSQL. You'll own features end to end, from schema to API.",
+    jobType: "remote",
+    experienceLevel: "mid",
+    salaryMin: 125000,
+    salaryMax: 160000,
+  },
+  {
+    title: "Senior Backend Engineer",
+    description:
+      "Lead the design of high-throughput services. Deep experience with Node.js, SQL tuning, and distributed systems required.",
+    jobType: "hybrid",
+    experienceLevel: "senior",
+    salaryMin: 160000,
+    salaryMax: 205000,
+  },
+  {
+    title: "Frontend Engineer",
+    description:
+      "Build fast, accessible interfaces in React, Next.js, and TypeScript. Care about performance and UX detail.",
+    jobType: "hybrid",
+    experienceLevel: "mid",
+    salaryMin: 120000,
+    salaryMax: 155000,
+  },
+  {
+    title: "Junior Software Engineer",
+    description:
+      "Great first role — pair with senior engineers, ship real features, and grow fast. Strong fundamentals in one language.",
+    jobType: "onsite",
+    experienceLevel: "junior",
+    salaryMin: 85000,
+    salaryMax: 110000,
+  },
+  {
+    title: "Full-Stack Engineer",
+    description:
+      "Work across a Next.js frontend and Node.js backend to deliver customer-facing features end to end.",
+    jobType: "remote",
+    experienceLevel: "mid",
+    salaryMin: 130000,
+    salaryMax: 165000,
+  },
+  {
+    title: "DevOps Engineer",
+    description:
+      "Own build pipelines and cloud infrastructure. Kubernetes, Terraform, and a cost-aware, automation-first mindset.",
+    jobType: "remote",
+    experienceLevel: "senior",
+    salaryMin: 145000,
+    salaryMax: 185000,
+  },
+  {
+    title: "Data Engineer",
+    description:
+      "Build the pipelines behind our analytics and reporting. Python, dbt, and warehouse modeling experience preferred.",
+    jobType: "remote",
+    experienceLevel: "mid",
+    salaryMin: 135000,
+    salaryMax: 170000,
+  },
+  {
+    title: "Product Designer",
+    description:
+      "Shape the end-to-end product experience. Figma, prototyping, and design-systems experience valued.",
+    jobType: "hybrid",
+    experienceLevel: "mid",
+    salaryMin: 115000,
+    salaryMax: 150000,
+  },
+  {
+    title: "Engineering Manager",
+    description:
+      "Lead a team of engineers building core product surfaces. People-first leader with a strong technical background.",
+    jobType: "hybrid",
+    experienceLevel: "senior",
+    salaryMin: 185000,
+    salaryMax: 240000,
+  },
+  {
+    title: "QA Engineer",
+    description:
+      "Own automated and manual testing across our releases. Detail-oriented and passionate about quality.",
+    jobType: "onsite",
+    experienceLevel: "junior",
+    salaryMin: 75000,
+    salaryMax: 98000,
+  },
+  {
+    title: "Site Reliability Engineer",
+    description:
+      "Keep our infrastructure fast and reliable. On-call rotation, incident response, and automation everywhere.",
+    jobType: "remote",
+    experienceLevel: "senior",
+    salaryMin: 150000,
+    salaryMax: 195000,
+  },
+  {
+    title: "Product Manager",
+    description:
+      "Own a product area from discovery to delivery. Comfortable with data, customer research, and tight collaboration with eng.",
+    jobType: "hybrid",
+    experienceLevel: "mid",
+    salaryMin: 130000,
+    salaryMax: 170000,
+  },
+];
+
+// Deterministically top a company up to TARGET_PER_COMPANY jobs. Uses the
+// company's ordinal as a stable offset so companies get different mixes.
+function fillCompanyJobs(seed: CompanySeed, companyIndex: number): JobSeed[] {
+  const jobs = [...seed.jobs];
+  let i = 0;
+  while (jobs.length < TARGET_PER_COMPANY) {
+    const template = ROLE_TEMPLATES[(companyIndex * 5 + i) % ROLE_TEMPLATES.length]!;
+    const team = TEAMS[(companyIndex * 3 + i) % TEAMS.length]!;
+    const location =
+      template.jobType === "remote"
+        ? REMOTE_LOCATIONS[i % REMOTE_LOCATIONS.length]!
+        : seed.cities[(companyIndex + i) % seed.cities.length]!;
+    // Nudge salary per company/team so filters see a spread of values.
+    const bump = ((companyIndex * 3 + i) % 5) * 3000;
+    jobs.push({
+      ...template,
+      title: `${template.title} — ${team}`,
+      location,
+      salaryMin: template.salaryMin === null ? null : template.salaryMin + bump,
+      salaryMax: template.salaryMax === null ? null : template.salaryMax + bump,
+    });
+    i += 1;
+  }
+  return jobs;
+}
+
 async function seedJobs(): Promise<void> {
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, BCRYPT_ROUNDS);
   let companyCount = 0;
   let jobCount = 0;
 
-  for (const seed of COMPANY_SEEDS) {
+  for (const [companyIndex, seed] of COMPANY_SEEDS.entries()) {
+    const jobsForCompany = fillCompanyJobs(seed, companyIndex);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -354,7 +519,7 @@ async function seedJobs(): Promise<void> {
       // Idempotent job refresh: wipe this company's jobs, then re-insert.
       await client.query(`DELETE FROM jobs WHERE company_id = $1`, [companyId]);
 
-      for (const job of seed.jobs) {
+      for (const job of jobsForCompany) {
         await client.query(
           `INSERT INTO jobs
              (company_id, title, description, location, job_type,
@@ -377,7 +542,7 @@ async function seedJobs(): Promise<void> {
       await client.query("COMMIT");
       companyCount += 1;
       logger.info(
-        { company: seed.name, jobs: seed.jobs.length },
+        { company: seed.name, jobs: jobsForCompany.length },
         "Seeded company + jobs",
       );
     } catch (err) {
