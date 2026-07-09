@@ -14,6 +14,13 @@ import type { ExperienceLevel, JobType } from "@/types/api";
 const SELECT_CLASS =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
+const SALARY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "50000", label: "$50k+" },
+  { value: "100000", label: "$100k+" },
+  { value: "150000", label: "$150k+" },
+  { value: "200000", label: "$200k+" },
+];
+
 function JobsBrowse(): JSX.Element {
   const router = useRouter();
   const pathname = usePathname();
@@ -21,16 +28,20 @@ function JobsBrowse(): JSX.Element {
 
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
   const search = searchParams.get("search") ?? "";
+  const location = searchParams.get("location") ?? "";
   const jobType = searchParams.get("job_type") ?? "";
   const experienceLevel = searchParams.get("experience_level") ?? "";
+  const salaryMin = searchParams.get("salary_min") ?? "";
 
   const filters: JobFilters = {
     page,
     ...(search ? { search } : {}),
+    ...(location ? { location } : {}),
     ...(jobType ? { jobType: jobType as JobType } : {}),
     ...(experienceLevel
       ? { experienceLevel: experienceLevel as ExperienceLevel }
       : {}),
+    ...(salaryMin ? { salaryMin: Number(salaryMin) } : {}),
   };
 
   const { data, isPending, isError, isPlaceholderData } = useJobs(filters);
@@ -48,9 +59,11 @@ function JobsBrowse(): JSX.Element {
     [router, pathname, searchParams],
   );
 
-  // Search box: local state debounced into the URL (resetting to page 1).
+  // Free-text boxes: local state debounced into the URL (resetting to page 1).
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebounce(searchInput, 300);
+  const [locationInput, setLocationInput] = useState(location);
+  const debouncedLocation = useDebounce(locationInput, 300);
 
   useEffect(() => {
     if (debouncedSearch !== search) {
@@ -61,13 +74,22 @@ function JobsBrowse(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    if (debouncedLocation !== location) {
+      updateParams({ location: debouncedLocation || null, page: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedLocation]);
+
   const total = data?.total ?? 0;
   const limit = data?.limit ?? 20;
   const totalPages = Math.max(1, Math.ceil(total / limit));
-  const hasFilters = Boolean(search || jobType || experienceLevel);
+  const hasFilters = Boolean(
+    search || location || jobType || experienceLevel || salaryMin,
+  );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Browse Jobs</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -84,6 +106,14 @@ function JobsBrowse(): JSX.Element {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="h-8 max-w-xs"
+        />
+        <Input
+          type="text"
+          placeholder="Location"
+          value={locationInput}
+          onChange={(e) => setLocationInput(e.target.value)}
+          className="h-8 max-w-[10rem]"
+          aria-label="Location"
         />
         <select
           className={SELECT_CLASS}
@@ -114,12 +144,28 @@ function JobsBrowse(): JSX.Element {
           <option value="mid">Mid</option>
           <option value="senior">Senior</option>
         </select>
+        <select
+          className={SELECT_CLASS}
+          value={salaryMin}
+          onChange={(e) =>
+            updateParams({ salary_min: e.target.value || null, page: null })
+          }
+          aria-label="Minimum salary"
+        >
+          <option value="">Any salary</option>
+          {SALARY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
         {hasFilters ? (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setSearchInput("");
+              setLocationInput("");
               router.push(pathname);
             }}
           >
@@ -133,7 +179,7 @@ function JobsBrowse(): JSX.Element {
           Something went wrong loading jobs. Please try again.
         </p>
       ) : isPending ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
@@ -144,7 +190,7 @@ function JobsBrowse(): JSX.Element {
         </p>
       ) : (
         <div
-          className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+          className={`grid gap-4 sm:grid-cols-2 ${
             isPlaceholderData ? "opacity-60" : ""
           }`}
         >
@@ -183,7 +229,7 @@ function JobsBrowse(): JSX.Element {
 
 export default function JobsPage(): JSX.Element {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-7xl px-4 py-8" />}>
+    <Suspense fallback={<div className="mx-auto max-w-5xl px-4 py-8" />}>
       <JobsBrowse />
     </Suspense>
   );
