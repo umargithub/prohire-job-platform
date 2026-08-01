@@ -4,6 +4,7 @@ import type {
   ApplicationDetailResponse,
   ApplicationResponse,
   ApplicationStage,
+  CandidateApplicationResponse,
   CompanyApplicationResponse,
   PaginatedApplications,
 } from "@/types/api";
@@ -16,6 +17,36 @@ export const NEXT_STAGES: ReadonlyArray<ApplicationStage> = [
   "offered",
   "rejected",
 ];
+
+// ── Candidate ─────────────────────────────────────────────────────────────
+
+export interface ApplyToJobInput {
+  jobId: string;
+  coverLetter?: string;
+}
+
+export async function applyToJob(
+  input: ApplyToJobInput,
+): Promise<ApplicationResponse> {
+  const { data } = await apiClient.post<
+    ApiSuccessResponse<ApplicationResponse>
+  >("/applications", {
+    job_id: input.jobId,
+    ...(input.coverLetter ? { cover_letter: input.coverLetter } : {}),
+  });
+  return data.data;
+}
+
+export async function getMyApplications(
+  page: number,
+): Promise<PaginatedApplications<CandidateApplicationResponse>> {
+  const { data } = await apiClient.get<
+    ApiSuccessResponse<PaginatedApplications<CandidateApplicationResponse>>
+  >("/applications", { params: { page } });
+  return data.data;
+}
+
+// ── Company ───────────────────────────────────────────────────────────────
 
 export async function getJobApplications(
   jobId: string,

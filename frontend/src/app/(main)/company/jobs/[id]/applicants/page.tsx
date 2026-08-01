@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { UsersIcon } from "lucide-react";
 import { getApiError } from "@/lib/api";
 import { NEXT_STAGES } from "@/lib/api/applications";
+import { STAGE_BADGE_VARIANT, STAGE_LABEL } from "@/lib/application-stage";
 import {
   useJobApplications,
   useUpdateApplicationStage,
@@ -18,25 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApplicationStage, CompanyApplicationResponse } from "@/types/api";
-
-const STAGE_LABEL: Record<ApplicationStage, string> = {
-  applied: "Applied",
-  reviewed: "Reviewed",
-  interview: "Interview",
-  offered: "Offered",
-  rejected: "Rejected",
-};
-
-const STAGE_BADGE_VARIANT: Record<
-  ApplicationStage,
-  "secondary" | "outline" | "default" | "destructive"
-> = {
-  applied: "secondary",
-  reviewed: "outline",
-  interview: "default",
-  offered: "default",
-  rejected: "destructive",
-};
 
 const SELECT_CLASS =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";

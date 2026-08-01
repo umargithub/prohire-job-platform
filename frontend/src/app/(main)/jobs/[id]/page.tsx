@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   BriefcaseIcon,
   BuildingIcon,
+  CircleCheckIcon,
   MapPinIcon,
   WalletIcon,
 } from "lucide-react";
 import { useJob } from "@/hooks/use-jobs";
+import { useApplyToJob } from "@/hooks/use-applications";
 import { useAuthStore } from "@/store/auth.store";
 import { formatSalary } from "@/components/jobs/job-card";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +35,85 @@ const EXPERIENCE_LABEL: Record<ExperienceLevel, string> = {
   senior: "Senior",
 };
 
-/**
- * The apply mutation itself belongs to the candidate vertical (needs a profile
- * check + POST /applications). Here we only render the correct CTA per auth
- * state; wiring the actual submission is the seam picked up next.
- */
-function ApplyCta({ jobId }: { jobId: string }): JSX.Element {
+function ApplyForm({
+  jobId,
+  onCancel,
+  onApplied,
+}: {
+  jobId: string;
+  onCancel: () => void;
+  onApplied: () => void;
+}): JSX.Element {
+  const [coverLetter, setCoverLetter] = useState("");
+  const apply = useApplyToJob();
+
+  function submit(): void {
+    apply.mutate(
+      { jobId, coverLetter: coverLetter || undefined },
+      {
+        onSuccess: () => {
+          toast.success("Application submitted");
+          onApplied();
+        },
+        onError: (err) => {
+          const detail = getApiError(err);
+          const message =
+            detail?.code === "DUPLICATE_APPLICATION"
+              ? "You've already applied to this job."
+              : detail?.code === "PROFILE_REQUIRED"
+                ? "Complete your candidate profile before applying."
+                : detail?.code === "JOB_INACTIVE"
+                  ? "This job is no longer accepting applications."
+                  : (detail?.message ?? "Failed to submit application");
+          toast.error(message);
+        },
+      },
+    );
+  }
+
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-2 sm:w-80">
+      <textarea
+        rows={4}
+        value={coverLetter}
+        onChange={(e) => setCoverLetter(e.target.value)}
+        placeholder="Cover letter (optional)…"
+        maxLength={2000}
+        className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={apply.isPending}
+          onClick={submit}
+          className="flex-1"
+        >
+          {apply.isPending ? "Submitting…" : "Submit application"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={apply.isPending}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ApplyCta({
+  jobId,
+  isActive,
+}: {
+  jobId: string;
+  isActive: boolean;
+}): JSX.Element {
   const user = useAuthStore((s) => s.user);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
 
   if (!user) {
     return (
@@ -50,19 +126,44 @@ function ApplyCta({ jobId }: { jobId: string }): JSX.Element {
     );
   }
 
-  if (user.role === "candidate") {
-    // TODO(candidate-vertical): wire to useApplyToJob mutation.
+  if (user.role !== "candidate") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Sign in with a candidate account to apply.
+      </p>
+    );
+  }
+
+  if (applied) {
+    return (
+      <Badge variant="secondary">
+        <CircleCheckIcon data-icon="inline-start" /> Applied
+      </Badge>
+    );
+  }
+
+  if (!isActive) {
     return (
       <Button variant="default" disabled>
-        Apply
+        Job closed
       </Button>
     );
   }
 
+  if (applying) {
+    return (
+      <ApplyForm
+        jobId={jobId}
+        onCancel={() => setApplying(false)}
+        onApplied={() => setApplied(true)}
+      />
+    );
+  }
+
   return (
-    <p className="text-sm text-muted-foreground">
-      Sign in with a candidate account to apply.
-    </p>
+    <Button variant="default" onClick={() => setApplying(true)}>
+      Apply
+    </Button>
   );
 }
 
@@ -137,7 +238,7 @@ export default function JobDetailPage(): JSX.Element {
                 </p>
               </div>
             </div>
-            <ApplyCta jobId={job.id} />
+            <ApplyCta jobId={job.id} isActive={job.isActive} />
           </div>
 
           <div className="mt-4 flex flex-wrap gap-1.5">
