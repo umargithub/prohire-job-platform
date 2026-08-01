@@ -2,12 +2,14 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import { useJobs } from "@/hooks/use-jobs";
 import { useDebounce } from "@/hooks/use-debounce";
 import { JobCard } from "@/components/jobs/job-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
 import type { JobFilters } from "@/lib/api/jobs";
 import type { ExperienceLevel, JobType } from "@/types/api";
 
@@ -89,140 +91,158 @@ function JobsBrowse(): JSX.Element {
   );
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Browse Jobs</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {isPending
-            ? "Loading…"
-            : `${total} open position${total === 1 ? "" : "s"}`}
-        </p>
-      </div>
+    <div>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--accent),transparent)]"
+          aria-hidden="true"
+        />
+        <div className="mx-auto max-w-5xl px-4 pt-12 pb-2">
+          <h1 className="text-3xl font-bold tracking-tight">Browse Jobs</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isPending
+              ? "Loading…"
+              : `${total} open position${total === 1 ? "" : "s"}`}
+          </p>
+        </div>
+      </section>
 
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <Input
-          type="search"
-          placeholder="Search titles, skills, keywords…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="h-8 max-w-xs"
-        />
-        <Input
-          type="text"
-          placeholder="Location"
-          value={locationInput}
-          onChange={(e) => setLocationInput(e.target.value)}
-          className="h-8 max-w-[10rem]"
-          aria-label="Location"
-        />
-        <select
-          className={SELECT_CLASS}
-          value={jobType}
-          onChange={(e) =>
-            updateParams({ job_type: e.target.value || null, page: null })
-          }
-          aria-label="Job type"
-        >
-          <option value="">All types</option>
-          <option value="remote">Remote</option>
-          <option value="hybrid">Hybrid</option>
-          <option value="onsite">On-site</option>
-        </select>
-        <select
-          className={SELECT_CLASS}
-          value={experienceLevel}
-          onChange={(e) =>
-            updateParams({
-              experience_level: e.target.value || null,
-              page: null,
-            })
-          }
-          aria-label="Experience level"
-        >
-          <option value="">All levels</option>
-          <option value="junior">Junior</option>
-          <option value="mid">Mid</option>
-          <option value="senior">Senior</option>
-        </select>
-        <select
-          className={SELECT_CLASS}
-          value={salaryMin}
-          onChange={(e) =>
-            updateParams({ salary_min: e.target.value || null, page: null })
-          }
-          aria-label="Minimum salary"
-        >
-          <option value="">Any salary</option>
-          {SALARY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {hasFilters ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearchInput("");
-              setLocationInput("");
-              router.push(pathname);
-            }}
+      <div className="mx-auto max-w-5xl px-4 pb-8">
+        <Card className="mb-6 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="search"
+              placeholder="Search titles, skills, keywords…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="h-8 max-w-xs"
+            />
+            <Input
+              type="text"
+              placeholder="Location"
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              className="h-8 max-w-[10rem]"
+              aria-label="Location"
+            />
+            <select
+              className={SELECT_CLASS}
+              value={jobType}
+              onChange={(e) =>
+                updateParams({ job_type: e.target.value || null, page: null })
+              }
+              aria-label="Job type"
+            >
+              <option value="">All types</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="onsite">On-site</option>
+            </select>
+            <select
+              className={SELECT_CLASS}
+              value={experienceLevel}
+              onChange={(e) =>
+                updateParams({
+                  experience_level: e.target.value || null,
+                  page: null,
+                })
+              }
+              aria-label="Experience level"
+            >
+              <option value="">All levels</option>
+              <option value="junior">Junior</option>
+              <option value="mid">Mid</option>
+              <option value="senior">Senior</option>
+            </select>
+            <select
+              className={SELECT_CLASS}
+              value={salaryMin}
+              onChange={(e) =>
+                updateParams({ salary_min: e.target.value || null, page: null })
+              }
+              aria-label="Minimum salary"
+            >
+              <option value="">Any salary</option>
+              {SALARY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {hasFilters ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchInput("");
+                  setLocationInput("");
+                  router.push(pathname);
+                }}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+
+        {isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl bg-destructive/10 px-4 py-12 text-center">
+            <TriangleAlertIcon className="size-6 text-destructive" />
+            <p className="text-sm text-destructive">
+              Something went wrong loading jobs. Please try again.
+            </p>
+          </div>
+        ) : isPending ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 w-full" />
+            ))}
+          </div>
+        ) : data.jobs.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-accent">
+              <SearchXIcon className="size-6 text-accent-foreground" />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              No jobs match your filters.
+            </p>
+          </div>
+        ) : (
+          <div
+            className={`grid gap-4 sm:grid-cols-2 ${
+              isPlaceholderData ? "opacity-60" : ""
+            }`}
           >
-            Clear
-          </Button>
+            {data.jobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        )}
+
+        {!isPending && !isError && totalPages > 1 ? (
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => updateParams({ page: String(page - 1) })}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => updateParams({ page: String(page + 1) })}
+            >
+              Next
+            </Button>
+          </div>
         ) : null}
       </div>
-
-      {isError ? (
-        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Something went wrong loading jobs. Please try again.
-        </p>
-      ) : isPending ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 w-full" />
-          ))}
-        </div>
-      ) : data.jobs.length === 0 ? (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          No jobs match your filters.
-        </p>
-      ) : (
-        <div
-          className={`grid gap-4 sm:grid-cols-2 ${
-            isPlaceholderData ? "opacity-60" : ""
-          }`}
-        >
-          {data.jobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
-      )}
-
-      {!isPending && !isError && totalPages > 1 ? (
-        <div className="mt-8 flex items-center justify-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => updateParams({ page: String(page - 1) })}
-          >
-            Previous
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => updateParams({ page: String(page + 1) })}
-          >
-            Next
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

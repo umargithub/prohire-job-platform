@@ -16,14 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -118,134 +111,145 @@ export default function CandidateProfilePage(): JSX.Element {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>
+    <div>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--accent),transparent)]"
+          aria-hidden="true"
+        />
+        <div className="mx-auto max-w-2xl px-4 pt-10 pb-2">
+          <h1 className="text-3xl font-bold tracking-tight">
             {mode === "create" ? "Create your profile" : "Your profile"}
-          </CardTitle>
-          <CardDescription>
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {mode === "create"
               ? "Companies see this when you apply to a job."
               : "Keep your details up to date so companies can find you."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          {mode === "update" && (
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarImage src={profile?.avatarUrl ?? undefined} />
-                <AvatarFallback>
-                  {profile?.fullName?.[0]?.toUpperCase() ?? "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col gap-2">
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={onAvatarChange}
+          </p>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-2xl px-4 pb-8">
+        <Card>
+          <CardContent className="flex flex-col gap-6">
+            {mode === "update" && (
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16 ring-2 ring-accent">
+                  <AvatarImage src={profile?.avatarUrl ?? undefined} />
+                  <AvatarFallback className="bg-accent text-accent-foreground">
+                    {profile?.fullName?.[0]?.toUpperCase() ?? "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={onAvatarChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadAvatar.isPending}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    {uploadAvatar.isPending ? "Uploading…" : "Change avatar"}
+                  </Button>
+                  <input
+                    ref={resumeInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={onResumeChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadResume.isPending}
+                    onClick={() => resumeInputRef.current?.click()}
+                  >
+                    {uploadResume.isPending
+                      ? "Uploading…"
+                      : profile?.resumeUrl
+                        ? "Replace resume"
+                        : "Upload resume"}
+                  </Button>
+                  {profile?.resumeUrl && (
+                    <div className="flex gap-3">
+                      <a
+                        href={profile.resumeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
+                        View resume
+                      </a>
+                      <a
+                        href={toCloudinaryDownloadUrl(profile.resumeUrl)}
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <form
+              id="candidate-profile-form"
+              onSubmit={onSubmit}
+              className="flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="fullName">Full name</Label>
+                <Input
+                  id="fullName"
+                  aria-invalid={!!errors.fullName}
+                  {...register("fullName")}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploadAvatar.isPending}
-                  onClick={() => avatarInputRef.current?.click()}
-                >
-                  {uploadAvatar.isPending ? "Uploading…" : "Change avatar"}
-                </Button>
-                <input
-                  ref={resumeInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={onResumeChange}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploadResume.isPending}
-                  onClick={() => resumeInputRef.current?.click()}
-                >
-                  {uploadResume.isPending
-                    ? "Uploading…"
-                    : profile?.resumeUrl
-                      ? "Replace resume"
-                      : "Upload resume"}
-                </Button>
-                {profile?.resumeUrl && (
-                  <div className="flex gap-3">
-                    <a
-                      href={profile.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      View resume
-                    </a>
-                    <a
-                      href={toCloudinaryDownloadUrl(profile.resumeUrl)}
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      Download
-                    </a>
-                  </div>
+                {errors.fullName && (
+                  <p className="text-xs text-destructive">
+                    {errors.fullName.message}
+                  </p>
                 )}
               </div>
-            </div>
-          )}
-
-          <form
-            id="candidate-profile-form"
-            onSubmit={onSubmit}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fullName">Full name</Label>
-              <Input
-                id="fullName"
-                aria-invalid={!!errors.fullName}
-                {...register("fullName")}
-              />
-              {errors.fullName && (
-                <p className="text-xs text-destructive">
-                  {errors.fullName.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bio">Bio</Label>
-              <textarea
-                id="bio"
-                rows={5}
-                aria-invalid={!!errors.bio}
-                className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30"
-                placeholder="Tell companies a bit about yourself…"
-                {...register("bio")}
-              />
-              {errors.bio && (
-                <p className="text-xs text-destructive">{errors.bio.message}</p>
-              )}
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter>
-          <Button
-            type="submit"
-            form="candidate-profile-form"
-            disabled={save.isPending}
-          >
-            {save.isPending
-              ? "Saving…"
-              : mode === "create"
-                ? "Create profile"
-                : "Save changes"}
-          </Button>
-        </CardFooter>
-      </Card>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="bio">Bio</Label>
+                <textarea
+                  id="bio"
+                  rows={5}
+                  aria-invalid={!!errors.bio}
+                  className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30"
+                  placeholder="Tell companies a bit about yourself…"
+                  {...register("bio")}
+                />
+                {errors.bio && (
+                  <p className="text-xs text-destructive">
+                    {errors.bio.message}
+                  </p>
+                )}
+              </div>
+            </form>
+          </CardContent>
+          <CardFooter>
+            <Button
+              type="submit"
+              form="candidate-profile-form"
+              disabled={save.isPending}
+            >
+              {save.isPending
+                ? "Saving…"
+                : mode === "create"
+                  ? "Create profile"
+                  : "Save changes"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }

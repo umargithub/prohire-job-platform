@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import {
+  BriefcaseIcon,
+  BuildingIcon,
+  MapPinIcon,
+  WalletIcon,
+} from "lucide-react";
 import { useJob } from "@/hooks/use-jobs";
 import { useAuthStore } from "@/store/auth.store";
 import { formatSalary } from "@/components/jobs/job-card";
@@ -9,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
 import { getApiError } from "@/lib/api";
 import type { ExperienceLevel, JobType } from "@/types/api";
 
@@ -101,33 +108,65 @@ export default function JobDetailPage(): JSX.Element {
   const salary = formatSalary(job.salaryMin, job.salaryMax);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link
-        href="/jobs"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Back to jobs
-      </Link>
+    <div>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--accent),transparent)]"
+          aria-hidden="true"
+        />
+        <div className="mx-auto max-w-4xl px-4 pt-10">
+          <Link
+            href="/jobs"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← Back to jobs
+          </Link>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{job.title}</h1>
-          <p className="mt-1 text-muted-foreground">{job.company.name}</p>
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent">
+                <BriefcaseIcon className="size-6 text-accent-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {job.title}
+                </h1>
+                <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+                  <BuildingIcon className="size-4" />
+                  {job.company.name}
+                </p>
+              </div>
+            </div>
+            <ApplyCta jobId={job.id} />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <Badge variant="secondary">{JOB_TYPE_LABEL[job.jobType]}</Badge>
+            <Badge variant="outline">
+              {EXPERIENCE_LABEL[job.experienceLevel]}
+            </Badge>
+            {job.location ? (
+              <Badge variant="outline">
+                <MapPinIcon data-icon="inline-start" /> {job.location}
+              </Badge>
+            ) : null}
+            {salary ? (
+              <Badge variant="outline">
+                <WalletIcon data-icon="inline-start" /> {salary}
+              </Badge>
+            ) : null}
+          </div>
         </div>
-        <ApplyCta jobId={job.id} />
-      </div>
+      </section>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        <Badge variant="secondary">{JOB_TYPE_LABEL[job.jobType]}</Badge>
-        <Badge variant="outline">{EXPERIENCE_LABEL[job.experienceLevel]}</Badge>
-        {job.location ? <Badge variant="outline">{job.location}</Badge> : null}
-        {salary ? <Badge variant="outline">{salary}</Badge> : null}
-      </div>
+      <div className="mx-auto max-w-4xl px-4 pb-16">
+        <Separator className="my-6" />
 
-      <Separator className="my-6" />
-
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-        {job.description}
+        <Card>
+          <CardContent className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+            {job.description}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

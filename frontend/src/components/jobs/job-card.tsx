@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BriefcaseIcon, MapPinIcon } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -40,24 +41,36 @@ export function JobCard({ job }: { job: JobResponse }): JSX.Element {
       href={`/jobs/${job.id}`}
       className="block rounded-xl transition-transform hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
-      <Card className="h-full ring-foreground/10 hover:ring-foreground/20">
+      <Card className="h-full ring-foreground/10 transition-shadow hover:shadow-md hover:ring-foreground/20">
         <CardHeader>
-          <CardTitle className="line-clamp-2 text-base">{job.title}</CardTitle>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+              <BriefcaseIcon className="size-4 text-accent-foreground" />
+            </div>
+            {salary ? (
+              <span className="mt-1 text-sm font-semibold text-foreground">
+                {salary}
+              </span>
+            ) : null}
+          </div>
+          <CardTitle className="mt-3 line-clamp-2 text-base">
+            {job.title}
+          </CardTitle>
           <CardDescription>{job.company.name}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {job.location ? (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPinIcon className="size-3.5 shrink-0" />
+              {job.location}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="secondary">{JOB_TYPE_LABEL[job.jobType]}</Badge>
             <Badge variant="outline">
               {EXPERIENCE_LABEL[job.experienceLevel]}
             </Badge>
-            {job.location ? (
-              <Badge variant="outline">{job.location}</Badge>
-            ) : null}
           </div>
-          {salary ? (
-            <p className="text-sm font-medium text-foreground">{salary}</p>
-          ) : null}
         </CardContent>
       </Card>
     </Link>
