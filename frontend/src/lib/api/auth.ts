@@ -64,10 +64,11 @@ export async function resendVerification(
 }
 
 export async function verifyEmail(token: string): Promise<MessageResponse> {
-  const { data } = await apiClient.post<MessageResponse>("/auth/verify-email", {
-    token,
-  });
-  return data;
+  const { data } = await apiClient.post<{
+    success: true;
+    data: MessageResponse;
+  }>("/auth/verify-email", { token });
+  return data.data;
 }
 
 export async function logout(): Promise<void> {

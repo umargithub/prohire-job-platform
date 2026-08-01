@@ -1,14 +1,18 @@
 "use client";
 
+import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { resetPassword } from "@/lib/api/auth";
+import { CircleCheckIcon } from "lucide-react";
+import { logout, resetPassword } from "@/lib/api/auth";
 import { getApiError } from "@/lib/api";
+import { useAuthStore } from "@/store/auth.store";
+import { broadcastLogout } from "@/lib/auth-broadcast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +37,70 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-export default function ResetPasswordPage(): JSX.Element {
-  const router = useRouter();
+/**
+ * Resetting a password proves ownership of the reset link, not identity of
+ * the caller — like /verify-email, this is session-independent. So on
+ * success we never navigate (a logged-in browser would just get bounced
+ * back by GuestGuard on /login); we render the final state in place and let
+ * the user decide what to do about whatever session already exists here.
+ */
+function ResetResult(): JSX.Element {
+  const { user, clearAuth } = useAuthStore();
+  const queryClient = useQueryClient();
+
+  const signOut = useMutation({
+    mutationFn: logout,
+    onSettled: () => {
+      clearAuth();
+      queryClient.clear();
+      broadcastLogout();
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CircleCheckIcon className="size-5 text-foreground" />
+          <CardTitle>Password reset</CardTitle>
+        </div>
+        <CardDescription>Your password has been changed.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {user ? (
+          <p className="text-sm text-muted-foreground">
+            You&apos;re currently signed in as{" "}
+            <span className="font-medium text-foreground">{user.email}</span>.
+            If the password you just reset belongs to a different account, sign
+            out first and then sign in with the new password.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Sign in with your new password.
+          </p>
+        )}
+      </CardContent>
+      <CardFooter className="flex flex-col gap-3">
+        {user ? (
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={signOut.isPending}
+            onClick={() => signOut.mutate()}
+          >
+            {signOut.isPending ? "Signing out…" : "Sign out"}
+          </Button>
+        ) : (
+          <Button className="w-full" render={<Link href="/login" />}>
+            Sign in
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
+
+function ResetPasswordContent(): JSX.Element {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -46,13 +112,9 @@ export default function ResetPasswordPage(): JSX.Element {
     resolver: zodResolver(schema),
   });
 
-  const { mutate, isPending } = useMutation({
+  const { mutate, isPending, isSuccess } = useMutation({
     mutationFn: (values: FormValues) =>
       resetPassword(token ?? "", values.password),
-    onSuccess: () => {
-      toast.success("Password reset successfully. Please sign in.");
-      router.push("/login");
-    },
     onError: (err: unknown) => {
       toast.error(
         getApiError(err)?.message ?? "Reset failed. The link may have expired.",
@@ -80,6 +142,8 @@ export default function ResetPasswordPage(): JSX.Element {
       </Card>
     );
   }
+
+  if (isSuccess) return <ResetResult />;
 
   return (
     <Card>
@@ -143,5 +207,13 @@ export default function ResetPasswordPage(): JSX.Element {
         </p>
       </CardFooter>
     </Card>
+  );
+}
+
+export default function ResetPasswordPage(): JSX.Element {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

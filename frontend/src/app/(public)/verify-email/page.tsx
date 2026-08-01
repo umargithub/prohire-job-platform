@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
 import Link from "next/link";
-import { resendVerification, verifyEmail } from "@/lib/api/auth";
+import { CircleCheckIcon } from "lucide-react";
+import { logout, resendVerification, verifyEmail } from "@/lib/api/auth";
+import { useAuthStore } from "@/store/auth.store";
+import { broadcastLogout } from "@/lib/auth-broadcast";
 import { useResendCooldown } from "@/hooks/use-resend-cooldown";
 import { EMAIL_VERIFIED_KEY } from "@/lib/storage-keys";
 import { Button } from "@/components/ui/button";
@@ -19,23 +22,87 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 
+/**
+ * Verification proves ownership of an email, not identity of the caller —
+ * the backend endpoint isn't tied to the request's session at all. So this
+ * page never redirects based on (or into) auth state: it renders whatever
+ * session already exists in this browser and lets the user decide the next
+ * step, instead of guessing and silently bouncing them somewhere confusing.
+ */
+function VerifiedResult({
+  alreadyVerified,
+}: {
+  alreadyVerified: boolean;
+}): JSX.Element {
+  const { user, clearAuth } = useAuthStore();
+  const queryClient = useQueryClient();
+
+  const signOut = useMutation({
+    mutationFn: logout,
+    onSettled: () => {
+      clearAuth();
+      queryClient.clear();
+      broadcastLogout();
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CircleCheckIcon className="size-5 text-foreground" />
+          <CardTitle>
+            {alreadyVerified ? "Already verified" : "Email verified"}
+          </CardTitle>
+        </div>
+        <CardDescription>
+          {alreadyVerified
+            ? "This email address was already confirmed."
+            : "This email address is now confirmed."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {user ? (
+          <p className="text-sm text-muted-foreground">
+            You&apos;re currently signed in as{" "}
+            <span className="font-medium text-foreground">{user.email}</span>.
+            If you want to use the account you just verified, sign out first and
+            then sign in with that account.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Your account is ready.
+          </p>
+        )}
+      </CardContent>
+      <CardFooter className="flex flex-col gap-3">
+        {user ? (
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={signOut.isPending}
+            onClick={() => signOut.mutate()}
+          >
+            {signOut.isPending ? "Signing out…" : "Sign out"}
+          </Button>
+        ) : (
+          <Button className="w-full" render={<Link href="/login" />}>
+            Sign in
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
+
 // ── Token mode (/verify-email?token=...) ─────────────────────────────────────
 
 function TokenVerification({ token }: { token: string }): JSX.Element {
-  const router = useRouter();
-
-  const { mutate, isPending, isError, isSuccess, error } = useMutation({
+  const { mutate, isPending, isError, isSuccess, data, error } = useMutation({
     mutationFn: () => verifyEmail(token),
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Broadcasts to a sibling "check your email" tab via the storage event.
       localStorage.setItem(EMAIL_VERIFIED_KEY, "true");
-      if (data.message === "Email already verified.") {
-        toast.info("Your email is already verified. Please sign in.");
-        router.replace("/login");
-        return;
-      }
-      toast.success("Email verified! You can now sign in.");
-      setTimeout(() => router.push("/login"), 2000);
     },
   });
 
@@ -44,28 +111,30 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
   // is transient, so keep the button available for an inline retry.
   const status = axios.isAxiosError(error) ? error.response?.status : undefined;
   const isTokenError = status === 400;
-  const showButton = !isSuccess && (!isError || !isTokenError);
+
+  if (isSuccess) {
+    return (
+      <VerifiedResult
+        alreadyVerified={data.message === "Email already verified."}
+      />
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          {isError && "Verification failed"}
-          {isSuccess && "Email verified!"}
-          {!isError && !isSuccess && "Confirm your email"}
+          {isError ? "Verification failed" : "Confirm your email"}
         </CardTitle>
         <CardDescription>
-          {isError &&
-            (isTokenError
+          {isError
+            ? isTokenError
               ? "The link may have expired or already been used."
-              : "Something went wrong. Please try again.")}
-          {isSuccess && "Redirecting you to login…"}
-          {!isError &&
-            !isSuccess &&
-            "Click the button below to verify your email address."}
+              : "Something went wrong. Please try again."
+            : "Click the button below to verify your email address."}
         </CardDescription>
       </CardHeader>
-      {showButton && (
+      {(!isError || !isTokenError) && (
         <CardContent>
           {/* Verification is an explicit user action (POST), never auto-fired on
               load, so email link scanners and prefetchers can't consume the token. */}
@@ -96,20 +165,20 @@ function TokenVerification({ token }: { token: string }): JSX.Element {
 // ── Email mode (/verify-email?email=...) ─────────────────────────────────────
 
 function PendingVerification({ email }: { email: string }): JSX.Element {
-  const router = useRouter();
+  const [verifiedElsewhere, setVerifiedElsewhere] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
+  const { user } = useAuthStore();
   const { mounted, secondsLeft, canResend, markSent } = useResendCooldown();
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === EMAIL_VERIFIED_KEY && e.newValue === "true") {
-        toast.info("Your email has been verified. Please sign in.");
-        router.replace("/login");
+        setVerifiedElsewhere(true);
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [router]);
+  }, []);
 
   const { mutate: resend, isPending: resending } = useMutation({
     mutationFn: () => resendVerification(email),
@@ -119,8 +188,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
       rateLimited?: boolean;
     }) => {
       if (data.alreadyVerified) {
-        toast.info("Your email is already verified. Please sign in.");
-        router.replace("/login");
+        setVerifiedElsewhere(true);
         return;
       }
       if (data.rateLimited) {
@@ -137,6 +205,8 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
     },
   });
 
+  if (verifiedElsewhere) return <VerifiedResult alreadyVerified={false} />;
+
   return (
     <Card>
       <CardHeader>
@@ -146,8 +216,15 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
         </CardDescription>
       </CardHeader>
       {mounted && (
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
+        <CardContent className="flex flex-col gap-3">
+          {user && (
+            <p className="text-xs text-muted-foreground">
+              You&apos;re currently signed in as{" "}
+              <span className="font-medium text-foreground">{user.email}</span>.
+              That session is unaffected by this verification.
+            </p>
+          )}
+          <p className="text-sm text-muted-foreground">
             Didn&apos;t receive the email?
           </p>
           {rateLimited ? (
@@ -184,7 +261,7 @@ function PendingVerification({ email }: { email: string }): JSX.Element {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function VerifyEmailPage(): JSX.Element {
+function VerifyEmailContent(): JSX.Element {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const email = searchParams.get("email");
@@ -208,5 +285,13 @@ export default function VerifyEmailPage(): JSX.Element {
         </p>
       </CardFooter>
     </Card>
+  );
+}
+
+export default function VerifyEmailPage(): JSX.Element {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
