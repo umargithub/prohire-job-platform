@@ -8,12 +8,17 @@ export interface MailOptions {
   html: string;
 }
 
+// Mailhog (the dev default) takes unauthenticated SMTP — nodemailer sends an
+// AUTH command whenever `auth` is present, even with empty strings, and
+// Mailhog rejects that. Only attach `auth` when credentials are configured.
 const transporter = config.SMTP_HOST
   ? nodemailer.createTransport({
       host: config.SMTP_HOST,
       port: config.SMTP_PORT,
       secure: config.SMTP_PORT === 465,
-      auth: { user: config.SMTP_USER, pass: config.SMTP_PASS },
+      ...(config.SMTP_USER
+        ? { auth: { user: config.SMTP_USER, pass: config.SMTP_PASS } }
+        : {}),
     })
   : null;
 

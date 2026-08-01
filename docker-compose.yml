@@ -43,6 +43,12 @@ services:
     volumes:
       - redisinsight_data:/data
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025" # SMTP — point SMTP_HOST=localhost SMTP_PORT=1025 at this
+      - "8025:8025" # Web UI — view caught emails at http://localhost:8025
+
 volumes:
   pg_data:
   redis_data:
