@@ -129,7 +129,7 @@ User + verification token are created in a single transaction. Email is enqueued
 
 `applyToJob` checks candidate profile existence first (`ProfileRequiredError` 403 if missing). No transaction — the unique constraint on `(job_id, candidate_id)` handles duplicate prevention at the DB level.
 
-`updateStage` does a pre-check (`existsForOwner`) before the version-locked UPDATE to produce a clear 404 instead of a silent conflict.
+`updateStage` fetches the application via `findById` first — this both produces a clear 404 instead of a silent conflict, and supplies the current `stage` (plus candidate email / job title for the notification email, reused as-is since they don't change) needed to validate the transition before the version-locked UPDATE runs. Stage moves are forward-only within `reviewed → interview → offered`; `rejected` is a terminal state reachable from any active stage but not reversible from it. Same-stage and backward moves throw `InvalidStageTransitionError` (400 `INVALID_STAGE_TRANSITION`) instead of silently re-firing the "stage changed" notification email.
 
 ### Optimistic locking
 

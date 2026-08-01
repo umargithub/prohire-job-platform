@@ -39,6 +39,12 @@ export class JobInactiveError extends AppError {
   }
 }
 
+export class InvalidStageTransitionError extends AppError {
+  constructor(message: string) {
+    super(message, 400, "INVALID_STAGE_TRANSITION");
+  }
+}
+
 export class ProfileRequiredError extends AppError {
   constructor() {
     super(

@@ -108,19 +108,6 @@ export class ApplicationRepository {
     return result.rows[0] ?? null;
   }
 
-  async existsForOwner(id: string, ownerId: string): Promise<boolean> {
-    const result = await this.db.query<{ exists: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM applications a
-         JOIN jobs j ON j.id = a.job_id
-         JOIN company_members cm ON cm.company_id = j.company_id AND cm.user_id = $2
-         WHERE a.id = $1
-       ) AS exists`,
-      [id, ownerId],
-    );
-    return result.rows[0]!.exists;
-  }
-
   async updateStageWithVersion(
     id: string,
     ownerId: string,

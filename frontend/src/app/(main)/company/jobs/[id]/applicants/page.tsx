@@ -6,8 +6,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { UsersIcon } from "lucide-react";
 import { getApiError } from "@/lib/api";
-import { NEXT_STAGES } from "@/lib/api/applications";
-import { STAGE_BADGE_VARIANT, STAGE_LABEL } from "@/lib/application-stage";
+import {
+  selectableStages,
+  STAGE_BADGE_VARIANT,
+  STAGE_LABEL,
+} from "@/lib/application-stage";
 import {
   useJobApplications,
   useUpdateApplicationStage,
@@ -32,8 +35,9 @@ function ApplicantRow({
   jobId: string;
   page: number;
 }): JSX.Element {
-  const [nextStage, setNextStage] = useState<ApplicationStage>(
-    application.stage,
+  const options = selectableStages(application.stage);
+  const [nextStage, setNextStage] = useState<ApplicationStage | undefined>(
+    options[0],
   );
   const updateStage = useUpdateApplicationStage(jobId, page);
 
@@ -59,45 +63,55 @@ function ApplicantRow({
           <Badge variant={STAGE_BADGE_VARIANT[application.stage]}>
             {STAGE_LABEL[application.stage]}
           </Badge>
-          <select
-            className={SELECT_CLASS}
-            value={nextStage}
-            onChange={(e) => setNextStage(e.target.value as ApplicationStage)}
-            aria-label="Move to stage"
-          >
-            {NEXT_STAGES.map((stage) => (
-              <option key={stage} value={stage}>
-                {STAGE_LABEL[stage]}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={updateStage.isPending || nextStage === application.stage}
-            onClick={() => {
-              updateStage.mutate(
-                {
-                  id: application.id,
-                  input: { stage: nextStage, version: application.version },
-                },
-                {
-                  onSuccess: () => toast.success("Stage updated"),
-                  onError: (err) => {
-                    const detail = getApiError(err);
-                    toast.error(
-                      detail?.code === "CONFLICT"
-                        ? "This application changed since you loaded it — refresh and try again."
-                        : (detail?.message ?? "Failed to update stage"),
-                    );
-                  },
-                },
-              );
-            }}
-          >
-            {updateStage.isPending ? "Updating…" : "Update"}
-          </Button>
+          {options.length === 0 ? null : (
+            <>
+              <select
+                className={SELECT_CLASS}
+                value={nextStage}
+                onChange={(e) =>
+                  setNextStage(e.target.value as ApplicationStage)
+                }
+                aria-label="Move to stage"
+              >
+                {options.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {STAGE_LABEL[stage]}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={updateStage.isPending || !nextStage}
+                onClick={() => {
+                  if (!nextStage) return;
+                  updateStage.mutate(
+                    {
+                      id: application.id,
+                      input: {
+                        stage: nextStage,
+                        version: application.version,
+                      },
+                    },
+                    {
+                      onSuccess: () => toast.success("Stage updated"),
+                      onError: (err) => {
+                        const detail = getApiError(err);
+                        toast.error(
+                          detail?.code === "CONFLICT"
+                            ? "This application changed since you loaded it — refresh and try again."
+                            : (detail?.message ?? "Failed to update stage"),
+                        );
+                      },
+                    },
+                  );
+                }}
+              >
+                {updateStage.isPending ? "Updating…" : "Update"}
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

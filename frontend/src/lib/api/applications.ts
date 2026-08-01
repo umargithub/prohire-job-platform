@@ -9,15 +9,6 @@ import type {
   PaginatedApplications,
 } from "@/types/api";
 
-/** Stages a company can move an application to. Excludes "applied" — that's
- * the initial state set by the candidate, never a manual target. */
-export const NEXT_STAGES: ReadonlyArray<ApplicationStage> = [
-  "reviewed",
-  "interview",
-  "offered",
-  "rejected",
-];
-
 // ── Candidate ─────────────────────────────────────────────────────────────
 
 export interface ApplyToJobInput {

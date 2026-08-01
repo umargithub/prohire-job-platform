@@ -5,6 +5,7 @@ import { EmailQueue } from "../../core/queue/email.queue";
 import {
   ApplicationRow,
   ApplicationDetailRow,
+  ApplicationStage,
   EmailStage,
   ApplicationWithCandidateRow,
   ApplicationWithJobRow,
@@ -14,10 +15,53 @@ import { GetApplicationsQueryInput } from "./application.dto";
 import {
   ConflictError,
   DuplicateApplicationError,
+  InvalidStageTransitionError,
   JobInactiveError,
   NotFoundError,
   ProfileRequiredError,
 } from "../../core/errors/AppError";
+
+/**
+ * "rejected" is a terminal outcome reachable from any active stage, not a
+ * step in the pipeline — a company can reject right after "applied" without
+ * ever marking it "reviewed". Only reviewed → interview → offered has an
+ * actual order.
+ */
+const PIPELINE_ORDER: Record<Exclude<ApplicationStage, "rejected">, number> = {
+  applied: 0,
+  reviewed: 1,
+  interview: 2,
+  offered: 3,
+};
+
+/**
+ * Guards against moving an application backward (e.g. interview → reviewed)
+ * or re-setting its current stage — both would still fire a real
+ * "stage changed" email to the candidate with no actual change to report,
+ * which reads as a confusing signal. "rejected" is terminal: reachable from
+ * anywhere, but not reversible from here.
+ */
+function assertValidStageTransition(
+  current: ApplicationStage,
+  next: EmailStage,
+): void {
+  if (next === current) {
+    throw new InvalidStageTransitionError(
+      `This application is already in the "${next}" stage.`,
+    );
+  }
+  if (current === "rejected") {
+    throw new InvalidStageTransitionError(
+      "This application has been rejected and can't be moved to another stage.",
+    );
+  }
+  if (next === "rejected") return;
+  if (PIPELINE_ORDER[next] < PIPELINE_ORDER[current]) {
+    throw new InvalidStageTransitionError(
+      `Can't move an application backward from "${current}" to "${next}".`,
+    );
+  }
+}
 
 export class ApplicationService {
   constructor(
@@ -98,11 +142,13 @@ export class ApplicationService {
     stage: EmailStage,
     version: number,
   ): Promise<ApplicationRow> {
-    const exists = await this.applicationRepository.existsForOwner(
+    const detail = await this.applicationRepository.findById(
       applicationId,
       ownerId,
     );
-    if (!exists) throw new NotFoundError("Application");
+    if (!detail) throw new NotFoundError("Application");
+
+    assertValidStageTransition(detail.stage, stage);
 
     const result = await this.applicationRepository.updateStageWithVersion(
       applicationId,
@@ -115,10 +161,11 @@ export class ApplicationService {
         "Application was modified by another request. Please refresh and try again.",
       );
 
-    const detail = await this.applicationRepository.findById(applicationId, ownerId);
-    if (detail) {
-      await this.emailQueue.enqueueStageChangedEmail(detail.candidate_email, stage, detail.job_title);
-    }
+    await this.emailQueue.enqueueStageChangedEmail(
+      detail.candidate_email,
+      stage,
+      detail.job_title,
+    );
 
     return result;
   }
