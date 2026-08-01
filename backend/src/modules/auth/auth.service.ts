@@ -192,6 +192,15 @@ export class AuthService {
     // row and returns the owner in one locked statement, so of N concurrent
     // refreshes with the same token exactly one succeeds; the rest see `null`
     // and are rejected. No read-then-write gap, no token proliferation.
+    //
+    // Trade-off: this is a hard delete with no grace window, so if a client's
+    // refresh is interrupted after this commit but before it applies the new
+    // Set-Cookie (e.g. an F5 mid-request), the browser keeps the now-retired
+    // token and the next refresh 401s — a rare, self-healing spurious logout.
+    // Accepted deliberately: closing it needs a grace window or reuse-detection
+    // token family, not worth the extra state for a sub-second window. Also
+    // note this design forgoes refresh-token reuse detection — a replayed
+    // stolen token just fails silently rather than revoking the session family.
     const consumed = await this.db.transaction(async (tx) => {
       const row = await this.authRepository.consumeRefreshToken(tokenHash, tx);
       if (!row) {

@@ -48,7 +48,10 @@ export class CandidateRepository {
   ): Promise<CandidateProfileRow | null> {
     const result = await this.db.query<CandidateProfileRow>(
       `UPDATE candidate_profiles
-       SET full_name = $1, bio = $2, resume_url = $3, avatar_url = $4, updated_at = NOW()
+       SET full_name = $1, bio = $2,
+           resume_url = COALESCE($3, resume_url),
+           avatar_url = COALESCE($4, avatar_url),
+           updated_at = NOW()
        WHERE user_id = $5
        RETURNING *`,
       [input.full_name, input.bio ?? null, input.resume_url ?? null, input.avatar_url ?? null, userId],

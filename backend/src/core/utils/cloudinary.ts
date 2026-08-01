@@ -19,7 +19,11 @@ export async function uploadToCloudinary(
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: `prohire/${folder}`,
-        resource_type: folder === "logos" ? "image" : "raw",
+        // "image" (not "raw") for all folders, including resumes: Cloudinary
+        // treats PDFs as an image-family asset and resolves the correct
+        // content-type/extension for them. "raw" always forces
+        // Content-Disposition: attachment, which breaks inline viewing.
+        resource_type: "image",
       },
       (error, result) => {
         if (error || !result)
